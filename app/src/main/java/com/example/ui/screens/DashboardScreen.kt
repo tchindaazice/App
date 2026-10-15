@@ -53,6 +53,7 @@ import com.example.data.model.VpnStatus
 import com.example.ui.components.MetricTile
 import com.example.ui.components.QuotaGauge
 import com.example.ui.components.VpnPowerButton
+import com.example.utils.FormatUtils
 import com.example.ui.theme.NexusCardBorder
 import com.example.ui.theme.NexusCyan
 import com.example.ui.theme.NexusDarkBg
@@ -131,7 +132,7 @@ fun DashboardScreen(
                         )
                     }
                     Text(
-                        text = "ID : ${session.uid}",
+                        text = "ID : ${FormatUtils.formatMaskedUid(session.uid)}",
                         color = NexusCyan,
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace

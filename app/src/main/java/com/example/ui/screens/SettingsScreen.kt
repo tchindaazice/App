@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.DeviceInfo
 import com.example.data.model.UserSession
 import com.example.data.model.VpnPreferences
+import com.example.utils.FormatUtils
 import com.example.ui.theme.NexusCardBorder
 import com.example.ui.theme.NexusCyan
 import com.example.ui.theme.NexusDarkBg
@@ -141,7 +142,7 @@ fun SettingsScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "UID : ${session?.uid ?: "---"}",
+                            text = "UID : ${FormatUtils.formatMaskedUid(session?.uid)}",
                             color = NexusCyan,
                             fontSize = 12.sp,
                             fontFamily = FontFamily.Monospace

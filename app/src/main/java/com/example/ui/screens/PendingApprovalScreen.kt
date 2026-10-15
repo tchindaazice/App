@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.ApprovalStatus
 import com.example.data.model.DeviceInfo
 import com.example.data.model.RegistrationRequest
+import com.example.utils.FormatUtils
 import com.example.ui.theme.NexusAmber
 import com.example.ui.theme.NexusCardBorder
 import com.example.ui.theme.NexusCyan
@@ -212,7 +213,7 @@ fun PendingApprovalScreen(
                 )
                 DetailRow(
                     label = "Empreinte ID Appareil",
-                    value = deviceInfo.deviceId,
+                    value = FormatUtils.formatMaskedUid(deviceInfo.deviceId),
                     isMono = true
                 )
                 DetailRow(
