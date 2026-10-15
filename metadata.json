@@ -1,0 +1,6 @@
+{
+  "name": "Nexus Tunnel VPN",
+  "description": "Client VPN VLESS sécurisé avec gestion d'adhésion pour l'Afrique, quotas en temps réel et liaison au web panel Nexus Tunnel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

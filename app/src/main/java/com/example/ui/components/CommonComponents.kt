@@ -1,0 +1,558 @@
+package com.example.ui.components
+
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.data.model.AfricanCountries
+import com.example.data.model.Country
+import com.example.data.model.VpnStatus
+import com.example.ui.theme.NexusAmber
+import com.example.ui.theme.NexusCardBorder
+import com.example.ui.theme.NexusCyan
+import com.example.ui.theme.NexusGlowCyan
+import com.example.ui.theme.NexusGlowGreen
+import com.example.ui.theme.NexusGreen
+import com.example.ui.theme.NexusRed
+import com.example.ui.theme.NexusSurface
+import com.example.ui.theme.NexusSurfaceVariant
+import com.example.ui.theme.NexusTextMuted
+import com.example.ui.theme.NexusTextPrimary
+import com.example.ui.theme.NexusTextSecondary
+import java.util.Locale
+
+@Composable
+fun CountrySelector(
+    selectedCountry: Country,
+    onCountrySelected: (Country) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var showDialog by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredCountries = remember(searchQuery) {
+        if (searchQuery.isBlank()) {
+            AfricanCountries.list
+        } else {
+            AfricanCountries.list.filter {
+                it.name.contains(searchQuery, ignoreCase = true) ||
+                it.dialCode.contains(searchQuery) ||
+                it.code.contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(NexusSurfaceVariant)
+            .border(1.dp, NexusCardBorder, RoundedCornerShape(12.dp))
+            .testTag("country_selector_trigger")
+            .clickable { showDialog = true }
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = selectedCountry.flagEmoji,
+                    fontSize = 24.sp,
+                    modifier = Modifier.padding(end = 12.dp)
+                )
+                Column {
+                    Text(
+                        text = selectedCountry.name,
+                        color = NexusTextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Indicatif: ${selectedCountry.dialCode} • Code: ${selectedCountry.code}",
+                        color = NexusTextSecondary,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+            Icon(
+                imageVector = Icons.Default.ArrowDropDown,
+                contentDescription = "Changer de pays",
+                tint = NexusCyan
+            )
+        }
+    }
+
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showDialog = false
+                searchQuery = ""
+            },
+            containerColor = NexusSurface,
+            title = {
+                Column {
+                    Text(
+                        text = "Sélectionner votre pays d'Afrique",
+                        color = NexusTextPrimary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Rechercher un pays...", color = NexusTextMuted, fontSize = 14.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = NexusCyan) },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Effacer", tint = NexusTextSecondary)
+                                }
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = NexusCyan,
+                            unfocusedBorderColor = NexusCardBorder,
+                            focusedTextColor = NexusTextPrimary,
+                            unfocusedTextColor = NexusTextPrimary
+                        ),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("country_search_input")
+                    )
+                }
+            },
+            text = {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(350.dp)
+                ) {
+                    items(filteredCountries, key = { it.code }) { country ->
+                        val isSelected = country.code == selectedCountry.code
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) NexusSurfaceVariant else Color.Transparent)
+                                .clickable {
+                                    onCountrySelected(country)
+                                    showDialog = false
+                                    searchQuery = ""
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            Text(text = country.flagEmoji, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = country.name,
+                                    color = if (isSelected) NexusCyan else NexusTextPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                                Text(
+                                    text = country.dialCode,
+                                    color = NexusTextSecondary,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            if (isSelected) {
+                                Text(text = "✓", color = NexusCyan, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDialog = false
+                    searchQuery = ""
+                }) {
+                    Text("Fermer", color = NexusCyan)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun QuotaGauge(
+    usedBytes: Long,
+    totalBytes: Long,
+    expirationTimestamp: Long,
+    modifier: Modifier = Modifier
+) {
+    val progress = if (totalBytes > 0) {
+        (usedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+
+    val remainingBytes = (totalBytes - usedBytes).coerceAtLeast(0L)
+    val usedGb = usedBytes / (1024.0 * 1024.0 * 1024.0)
+    val totalGb = totalBytes / (1024.0 * 1024.0 * 1024.0)
+    val remainingGb = remainingBytes / (1024.0 * 1024.0 * 1024.0)
+    val percentage = (progress * 100).toInt()
+
+    val daysRemaining = ((expirationTimestamp - System.currentTimeMillis()) / (24 * 3600 * 1000L)).coerceAtLeast(0L)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(NexusSurfaceVariant, NexusSurface)
+                )
+            )
+            .border(1.dp, NexusCardBorder, RoundedCornerShape(20.dp))
+            .padding(20.dp)
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(if (remainingBytes > 0) NexusGreen else NexusRed)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "QUOTA DE DONNÉES VLESS",
+                        color = NexusTextSecondary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                }
+
+                Surface(
+                    color = NexusGlowCyan,
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = if (daysRemaining > 0) "Expire dans ${daysRemaining}j" else "Expiré",
+                        color = if (daysRemaining > 3) NexusCyan else NexusAmber,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Radial gauge ring with numbers in center
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(170.dp)
+            ) {
+                Canvas(modifier = Modifier.size(160.dp)) {
+                    val strokeWidth = 14.dp.toPx()
+                    // Track
+                    drawCircle(
+                        color = Color(0xFF1E2D4A),
+                        style = Stroke(width = strokeWidth)
+                    )
+                    // Consumed Arc
+                    val sweepAngle = progress * 360f
+                    drawArc(
+                        brush = Brush.sweepGradient(
+                            listOf(NexusCyan, NexusGreen, NexusCyan)
+                        ),
+                        startAngle = -90f,
+                        sweepAngle = sweepAngle,
+                        useCenter = false,
+                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = String.format(Locale.US, "%.2f", remainingGb),
+                        color = NexusTextPrimary,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text(
+                        text = "Go Restants",
+                        color = NexusCyan,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "$percentage% consommé",
+                        color = NexusTextMuted,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Data stats bottom row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                QuotaItem(
+                    label = "Consommé",
+                    value = String.format(Locale.US, "%.2f Go", usedGb),
+                    color = NexusTextPrimary
+                )
+                Box(
+                    modifier = Modifier
+                        .height(30.dp)
+                        .width(1.dp)
+                        .background(NexusCardBorder)
+                )
+                QuotaItem(
+                    label = "Attribué",
+                    value = String.format(Locale.US, "%.0f Go", totalGb),
+                    color = NexusCyan
+                )
+                Box(
+                    modifier = Modifier
+                        .height(30.dp)
+                        .width(1.dp)
+                        .background(NexusCardBorder)
+                )
+                QuotaItem(
+                    label = "Statut",
+                    value = if (remainingBytes > 0) "Actif" else "Épuisé",
+                    color = if (remainingBytes > 0) NexusGreen else NexusRed
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuotaItem(
+    label: String,
+    value: String,
+    color: Color
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = label, color = NexusTextSecondary, fontSize = 11.sp)
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = value,
+            color = color,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace
+        )
+    }
+}
+
+@Composable
+fun VpnPowerButton(
+    status: VpnStatus,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.14f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseScale"
+    )
+
+    val (glowColor, buttonColor, statusText) = when (status) {
+        VpnStatus.CONNECTED -> Triple(NexusGlowGreen, NexusGreen, "CONNECTÉ • SÉCURISÉ")
+        VpnStatus.CONNECTING -> Triple(NexusGlowCyan, NexusCyan, "CONNEXION EN COURS...")
+        VpnStatus.DISCONNECTING -> Triple(NexusGlowCyan, NexusAmber, "DÉCONNEXION...")
+        VpnStatus.ERROR -> Triple(Color(0x33EF4444), NexusRed, "ERREUR CONNEXION")
+        VpnStatus.DISCONNECTED -> Triple(Color.Transparent, Color(0xFF1E2D4A), "APPUYER POUR ACTIVER")
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(150.dp)
+        ) {
+            // Pulsing background ring when connecting or connected
+            if (status == VpnStatus.CONNECTED || status == VpnStatus.CONNECTING) {
+                Box(
+                    modifier = Modifier
+                        .size(140.dp)
+                        .scale(pulseScale)
+                        .clip(CircleShape)
+                        .background(glowColor)
+                )
+            }
+
+            // Outer metallic border
+            Box(
+                modifier = Modifier
+                    .size(126.dp)
+                    .clip(CircleShape)
+                    .background(NexusSurfaceVariant)
+                    .border(3.dp, buttonColor.copy(alpha = 0.8f), CircleShape)
+            )
+
+            // Inner button
+            Surface(
+                onClick = onClick,
+                shape = CircleShape,
+                color = if (status == VpnStatus.CONNECTED) NexusGreen else NexusSurface,
+                shadowElevation = 8.dp,
+                modifier = Modifier
+                    .size(110.dp)
+                    .testTag("vpn_power_button")
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (status == VpnStatus.CONNECTING) {
+                        CircularProgressIndicator(
+                            color = NexusCyan,
+                            strokeWidth = 3.dp,
+                            modifier = Modifier.size(60.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.PowerSettingsNew,
+                            contentDescription = "Activer VPN",
+                            tint = if (status == VpnStatus.CONNECTED) Color(0xFF03261C) else buttonColor,
+                            modifier = Modifier.size(52.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Surface(
+            color = buttonColor.copy(alpha = 0.15f),
+            shape = RoundedCornerShape(20.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, buttonColor.copy(alpha = 0.4f))
+        ) {
+            Text(
+                text = statusText,
+                color = buttonColor,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun MetricTile(
+    icon: String,
+    title: String,
+    value: String,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(NexusSurfaceVariant)
+            .border(1.dp, NexusCardBorder, RoundedCornerShape(16.dp))
+            .padding(14.dp)
+    ) {
+        Column {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(text = icon, fontSize = 16.sp)
+                Text(
+                    text = title,
+                    color = NexusTextSecondary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = value,
+                color = accentColor,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace
+            )
+        }
+    }
+}

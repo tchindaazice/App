@@ -1,0 +1,320 @@
+package com.example.ui.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Router
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.data.model.ConnectionStats
+import com.example.data.model.UserSession
+import com.example.data.model.VpnConfig
+import com.example.data.model.VpnStatus
+import com.example.ui.components.MetricTile
+import com.example.ui.components.QuotaGauge
+import com.example.ui.components.VpnPowerButton
+import com.example.ui.theme.NexusCardBorder
+import com.example.ui.theme.NexusCyan
+import com.example.ui.theme.NexusDarkBg
+import com.example.ui.theme.NexusGlowCyan
+import com.example.ui.theme.NexusGreen
+import com.example.ui.theme.NexusSurface
+import com.example.ui.theme.NexusSurfaceVariant
+import com.example.ui.theme.NexusTextMuted
+import com.example.ui.theme.NexusTextPrimary
+import com.example.ui.theme.NexusTextSecondary
+import java.util.Locale
+
+@Composable
+fun DashboardScreen(
+    session: UserSession,
+    vpnStatus: VpnStatus,
+    stats: ConnectionStats,
+    config: VpnConfig,
+    onToggleVpn: () -> Unit
+) {
+    val scrollState = rememberScrollState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(NexusDarkBg)
+            .verticalScroll(scrollState)
+            .padding(horizontal = 18.dp, vertical = 12.dp)
+            .testTag("dashboard_screen"),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // User Profile & Status Header
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(NexusSurface)
+                .border(1.dp, NexusCardBorder, RoundedCornerShape(16.dp))
+                .padding(14.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = session.countryFlag,
+                        fontSize = 26.sp,
+                        modifier = Modifier.padding(end = 10.dp)
+                    )
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = session.fullName,
+                                color = NexusTextPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.VerifiedUser,
+                                contentDescription = "Vérifié",
+                                tint = NexusCyan,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Text(
+                            text = "UID: ${session.uid}",
+                            color = NexusCyan,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                Surface(
+                    color = NexusGlowCyan,
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "VLESS PRO",
+                        color = NexusCyan,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // REAL-TIME DATA QUOTA GAUGE (Prominently featured)
+        QuotaGauge(
+            usedBytes = session.quotaUsedBytes,
+            totalBytes = session.quotaTotalBytes,
+            expirationTimestamp = session.expirationTimestamp
+        )
+
+        Spacer(modifier = Modifier.height(22.dp))
+
+        // VPN CONNECT / DISCONNECT POWER BUTTON
+        VpnPowerButton(
+            status = vpnStatus,
+            onClick = onToggleVpn
+        )
+
+        Spacer(modifier = Modifier.height(22.dp))
+
+        // LIVE CONNECTION METRICS GRID
+        val downloadSpeedFormatted = if (vpnStatus == VpnStatus.CONNECTED) {
+            String.format(Locale.US, "%.1f Mo/s", stats.downloadSpeedBps / (1024.0 * 1024.0))
+        } else "0.0 Ko/s"
+
+        val uploadSpeedFormatted = if (vpnStatus == VpnStatus.CONNECTED) {
+            String.format(Locale.US, "%.1f Mo/s", stats.uploadSpeedBps / (1024.0 * 1024.0))
+        } else "0.0 Ko/s"
+
+        val pingFormatted = if (vpnStatus == VpnStatus.CONNECTED) "${stats.pingMs} ms" else "-- ms"
+        val durationFormatted = formatDuration(stats.connectedDurationSeconds)
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            MetricTile(
+                icon = "⬇️",
+                title = "Téléchargement",
+                value = downloadSpeedFormatted,
+                accentColor = NexusCyan,
+                modifier = Modifier.weight(1f)
+            )
+            MetricTile(
+                icon = "⬆️",
+                title = "Envoi",
+                value = uploadSpeedFormatted,
+                accentColor = NexusGreen,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            MetricTile(
+                icon = "⚡",
+                title = "Latence / Ping",
+                value = pingFormatted,
+                accentColor = if (stats.pingMs in 1..60) NexusGreen else NexusCyan,
+                modifier = Modifier.weight(1f)
+            )
+            MetricTile(
+                icon = "⏱️",
+                title = "Durée Session",
+                value = durationFormatted,
+                accentColor = NexusTextPrimary,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ACTIVE NODE & PROTOCOL CARD
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(NexusSurface)
+                .border(1.dp, NexusCardBorder, RoundedCornerShape(16.dp))
+                .padding(16.dp)
+        ) {
+            Column {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Router,
+                            contentDescription = null,
+                            tint = NexusCyan,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Nœud Nexus Tunnel Core",
+                            color = NexusTextPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(if (vpnStatus == VpnStatus.CONNECTED) NexusGreen else Color.Gray)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (vpnStatus == VpnStatus.CONNECTED) "En Ligne" else "Prêt",
+                            color = if (vpnStatus == VpnStatus.CONNECTED) NexusGreen else NexusTextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = "Hôte", color = NexusTextSecondary, fontSize = 12.sp)
+                    Text(
+                        text = "nexus-tunnel-d-ploiement-gestionnaire-vless...",
+                        color = NexusCyan,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = "Protocole / Transport", color = NexusTextSecondary, fontSize = 12.sp)
+                    Text(
+                        text = "VLESS + ${config.transport}",
+                        color = NexusTextPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = "Chiffrement", color = NexusTextSecondary, fontSize = 12.sp)
+                    Text(
+                        text = "TLS 1.3 / ChaCha20-Poly1305",
+                        color = NexusGreen,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+    }
+}
+
+private fun formatDuration(seconds: Long): String {
+    val hrs = seconds / 3600
+    val mins = (seconds % 3600) / 60
+    val secs = seconds % 60
+    return if (hrs > 0) {
+        String.format(Locale.US, "%02d:%02d:%02d", hrs, mins, secs)
+    } else {
+        String.format(Locale.US, "%02d:%02d", mins, secs)
+    }
+}
