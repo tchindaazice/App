@@ -2,8 +2,6 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,6 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Person
@@ -41,7 +41,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -66,11 +65,9 @@ import com.example.data.model.CommunicationChannel
 import com.example.data.model.Country
 import com.example.data.model.DeviceInfo
 import com.example.ui.components.CountrySelector
-import com.example.ui.theme.NexusAmber
 import com.example.ui.theme.NexusCardBorder
 import com.example.ui.theme.NexusCyan
 import com.example.ui.theme.NexusDarkBg
-import com.example.ui.theme.NexusGlowCyan
 import com.example.ui.theme.NexusGreen
 import com.example.ui.theme.NexusSurface
 import com.example.ui.theme.NexusSurfaceVariant
@@ -84,8 +81,7 @@ fun RegistrationScreen(
     deviceInfo: DeviceInfo,
     isSubmitting: Boolean,
     onSubmit: (fullName: String, country: Country, channel: CommunicationChannel, contact: String) -> Unit,
-    onActivateToken: (String) -> Unit,
-    onSimulateAdminApproval: () -> Unit
+    onActivateToken: (String) -> Unit
 ) {
     var selectedCountry by remember { mutableStateOf(AfricanCountries.default()) }
     var selectedChannel by remember { mutableStateOf(CommunicationChannel.WHATSAPP) }
@@ -144,7 +140,7 @@ fun RegistrationScreen(
         )
 
         Text(
-            text = "Protocole VLESS Pro • Accès Sécurisé Afrique",
+            text = "Protocole VLESS Pro • Authentification Sécurisée",
             color = NexusTextSecondary,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium
@@ -171,7 +167,7 @@ fun RegistrationScreen(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Appareil détecté & sécurisé",
+                        text = "Appareil détecté & certifié",
                         color = NexusTextPrimary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
@@ -182,7 +178,7 @@ fun RegistrationScreen(
                         fontSize = 11.sp
                     )
                     Text(
-                        text = "ID: ${deviceInfo.deviceId}",
+                        text = "Empreinte : ${deviceInfo.deviceId}",
                         color = NexusCyan,
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
@@ -198,16 +194,15 @@ fun RegistrationScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(22.dp))
 
-        // FORM FIELDS
-        // 1. Choix du pays actuel (Obligatoire)
+        // 1. Choix du pays actuel
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "🌍", fontSize = 16.sp)
+                Icon(Icons.Default.Public, contentDescription = null, tint = NexusCyan, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Choisir son pays actuel (Afrique) *",
+                    text = "Choisir son pays actuel *",
                     color = NexusTextPrimary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold
@@ -222,10 +217,10 @@ fun RegistrationScreen(
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // 2. Titre Moyen de communication (Liste déroulante WhatsApp / Telegram)
+        // 2. Titre Moyen de communication (WhatsApp / Telegram)
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "📡", fontSize = 16.sp)
+                Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, tint = NexusCyan, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Moyen de communication *",
@@ -242,9 +237,17 @@ fun RegistrationScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedTextField(
-                    value = "${selectedChannel.iconEmoji}  ${selectedChannel.label}",
+                    value = selectedChannel.label,
                     onValueChange = {},
                     readOnly = true,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = if (selectedChannel == CommunicationChannel.WHATSAPP) Icons.Default.Phone else Icons.AutoMirrored.Filled.Send,
+                            contentDescription = null,
+                            tint = NexusCyan,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = channelDropdownExpanded) },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = NexusSurfaceVariant,
@@ -256,7 +259,7 @@ fun RegistrationScreen(
                     ),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
-                        .menuAnchor()
+                        .menuAnchor(androidx.compose.material3.MenuAnchorType.PrimaryNotEditable, true)
                         .fillMaxWidth()
                         .testTag("channel_dropdown_field")
                 )
@@ -270,7 +273,13 @@ fun RegistrationScreen(
                         DropdownMenuItem(
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(channel.iconEmoji, fontSize = 18.sp, modifier = Modifier.padding(end = 10.dp))
+                                    Icon(
+                                        imageVector = if (channel == CommunicationChannel.WHATSAPP) Icons.Default.Phone else Icons.AutoMirrored.Filled.Send,
+                                        contentDescription = null,
+                                        tint = NexusCyan,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
                                     Text(channel.label, color = NexusTextPrimary, fontSize = 14.sp)
                                 }
                             },
@@ -286,13 +295,18 @@ fun RegistrationScreen(
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // 3. Contact Input (WhatsApp number or Telegram username)
+        // 3. Contact Input
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = if (selectedChannel == CommunicationChannel.WHATSAPP) "💬" else "✈️", fontSize = 16.sp)
+                Icon(
+                    imageVector = if (selectedChannel == CommunicationChannel.WHATSAPP) Icons.Default.Phone else Icons.AutoMirrored.Filled.Send,
+                    contentDescription = null,
+                    tint = NexusCyan,
+                    modifier = Modifier.size(16.dp)
+                )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (selectedChannel == CommunicationChannel.WHATSAPP) "Numéro WhatsApp *" else "Nom d'utilisateur Telegram (@username) *",
+                    text = if (selectedChannel == CommunicationChannel.WHATSAPP) "Numéro WhatsApp *" else "Identifiant Telegram (@username) *",
                     color = NexusTextPrimary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold
@@ -306,9 +320,9 @@ fun RegistrationScreen(
                 placeholder = {
                     Text(
                         text = if (selectedChannel == CommunicationChannel.WHATSAPP)
-                            "Ex: ${selectedCountry.dialCode} 6XXXXXXXX"
+                            "Ex : ${selectedCountry.dialCode} 6XXXXXXXX"
                         else
-                            "@mon_pseudo_telegram",
+                            "@nom_utilisateur",
                         color = NexusTextMuted,
                         fontSize = 14.sp
                     )
@@ -345,7 +359,7 @@ fun RegistrationScreen(
         // 4. Nom complet d'utilisateur
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "👤", fontSize = 16.sp)
+                Icon(Icons.Default.Person, contentDescription = null, tint = NexusCyan, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Nom complet d'utilisateur *",
@@ -359,7 +373,7 @@ fun RegistrationScreen(
             OutlinedTextField(
                 value = fullName,
                 onValueChange = { fullName = it },
-                placeholder = { Text("Ex: Jean Dupont", color = NexusTextMuted, fontSize = 14.sp) },
+                placeholder = { Text("Ex : Jean Dupont", color = NexusTextMuted, fontSize = 14.sp) },
                 leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = NexusCyan) },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Text,
@@ -404,10 +418,10 @@ fun RegistrationScreen(
             if (isSubmitting) {
                 CircularProgressIndicator(color = Color.Black, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                 Spacer(modifier = Modifier.width(12.dp))
-                Text("Transmission au Web Panel...", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("Transmission au serveur...", fontWeight = FontWeight.Bold, fontSize = 15.sp)
             } else {
                 Text(
-                    text = "SOUMETTRE LA DEMANDE D'ADHÉSION 🚀",
+                    text = "SOUMETTRE LA DEMANDE D'ACCÈS",
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 14.sp,
                     letterSpacing = 0.5.sp
@@ -417,7 +431,7 @@ fun RegistrationScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Direct Token input option
+        // Bouton Token direct
         OutlinedButton(
             onClick = { showTokenDialog = true },
             shape = RoundedCornerShape(14.dp),
@@ -430,22 +444,7 @@ fun RegistrationScreen(
         ) {
             Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("J'ai déjà un Token Admin / Revendeur", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Quick simulation mode for testing
-        TextButton(
-            onClick = onSimulateAdminApproval,
-            modifier = Modifier.testTag("simulate_approval_button")
-        ) {
-            Text(
-                text = "⚡ Tester en mode Démo (Approbation Immédiate)",
-                color = NexusAmber,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
-            )
+            Text("J'ai déjà un Token d'accès Administrateur", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -471,7 +470,7 @@ fun RegistrationScreen(
             text = {
                 Column {
                     Text(
-                        text = "Entrez le token personnalisé généré par l'administrateur ou revendeur du Web Panel Nexus :",
+                        text = "Saisissez le token d'accès généré par l'administrateur du Web Panel pour configurer votre VPN :",
                         color = NexusTextSecondary,
                         fontSize = 13.sp
                     )
@@ -479,7 +478,7 @@ fun RegistrationScreen(
                     OutlinedTextField(
                         value = tokenInput,
                         onValueChange = { tokenInput = it },
-                        placeholder = { Text("Ex: NX-VLESS-829A-PRO", color = NexusTextMuted, fontSize = 13.sp) },
+                        placeholder = { Text("Ex : NEXUS-VLESS-829A-PRO", color = NexusTextMuted, fontSize = 13.sp) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = NexusCyan,
                             unfocusedBorderColor = NexusCardBorder,
@@ -504,7 +503,7 @@ fun RegistrationScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = NexusCyan, contentColor = Color.Black),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("Activer", fontWeight = FontWeight.Bold)
+                    Text("Activer le profil", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

@@ -10,7 +10,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,14 +26,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -57,8 +57,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.AfricanCountries
@@ -76,6 +74,8 @@ import com.example.ui.theme.NexusSurfaceVariant
 import com.example.ui.theme.NexusTextMuted
 import com.example.ui.theme.NexusTextPrimary
 import com.example.ui.theme.NexusTextSecondary
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 @Composable
@@ -115,11 +115,22 @@ fun CountrySelector(
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = selectedCountry.flagEmoji,
-                    fontSize = 24.sp,
+                // Pro Country Badge
+                Surface(
+                    color = NexusCyan.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(6.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, NexusCyan.copy(alpha = 0.4f)),
                     modifier = Modifier.padding(end = 12.dp)
-                )
+                ) {
+                    Text(
+                        text = selectedCountry.code,
+                        color = NexusCyan,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
                 Column {
                     Text(
                         text = selectedCountry.name,
@@ -128,7 +139,7 @@ fun CountrySelector(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = "Indicatif: ${selectedCountry.dialCode} • Code: ${selectedCountry.code}",
+                        text = "Indicatif : ${selectedCountry.dialCode}",
                         color = NexusTextSecondary,
                         fontSize = 12.sp
                     )
@@ -152,16 +163,16 @@ fun CountrySelector(
             title = {
                 Column {
                     Text(
-                        text = "Sélectionner votre pays d'Afrique",
+                        text = "Sélectionner votre pays",
                         color = NexusTextPrimary,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = { Text("Rechercher un pays...", color = NexusTextMuted, fontSize = 14.sp) },
+                        placeholder = { Text("Rechercher...", color = NexusTextMuted, fontSize = 14.sp) },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = NexusCyan) },
                         trailingIcon = {
                             if (searchQuery.isNotEmpty()) {
@@ -204,7 +215,20 @@ fun CountrySelector(
                                 }
                                 .padding(horizontal = 12.dp, vertical = 10.dp)
                         ) {
-                            Text(text = country.flagEmoji, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
+                            Surface(
+                                color = if (isSelected) NexusCyan else NexusSurfaceVariant,
+                                shape = RoundedCornerShape(4.dp),
+                                modifier = Modifier.padding(end = 12.dp)
+                            ) {
+                                Text(
+                                    text = country.code,
+                                    color = if (isSelected) Color.Black else NexusTextSecondary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                )
+                            }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = country.name,
@@ -219,7 +243,7 @@ fun CountrySelector(
                                 )
                             }
                             if (isSelected) {
-                                Text(text = "✓", color = NexusCyan, fontWeight = FontWeight.Bold)
+                                Icon(Icons.Default.Check, contentDescription = null, tint = NexusCyan)
                             }
                         }
                     }
@@ -254,18 +278,19 @@ fun QuotaGauge(
     val remainingGb = remainingBytes / (1024.0 * 1024.0 * 1024.0)
     val percentage = (progress * 100).toInt()
 
-    val daysRemaining = ((expirationTimestamp - System.currentTimeMillis()) / (24 * 3600 * 1000L)).coerceAtLeast(0L)
+    val expiryDateFormat = SimpleDateFormat("d MMM yyyy", Locale.FRENCH)
+    val formattedExpiry = expiryDateFormat.format(Date(expirationTimestamp))
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(22.dp))
             .background(
                 Brush.verticalGradient(
                     colors = listOf(NexusSurfaceVariant, NexusSurface)
                 )
             )
-            .border(1.dp, NexusCardBorder, RoundedCornerShape(20.dp))
+            .border(1.dp, NexusCardBorder, RoundedCornerShape(22.dp))
             .padding(20.dp)
     ) {
         Column(
@@ -286,7 +311,7 @@ fun QuotaGauge(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "QUOTA DE DONNÉES VLESS",
+                        text = "CONSOMMATION DE DONNÉES",
                         color = NexusTextSecondary,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
@@ -299,30 +324,28 @@ fun QuotaGauge(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = if (daysRemaining > 0) "Expire dans ${daysRemaining}j" else "Expiré",
-                        color = if (daysRemaining > 3) NexusCyan else NexusAmber,
+                        text = "Expire le $formattedExpiry",
+                        color = NexusCyan,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Radial gauge ring with numbers in center
+            // Radial gauge ring
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.size(170.dp)
+                modifier = Modifier.size(175.dp)
             ) {
-                Canvas(modifier = Modifier.size(160.dp)) {
+                Canvas(modifier = Modifier.size(165.dp)) {
                     val strokeWidth = 14.dp.toPx()
-                    // Track
                     drawCircle(
-                        color = Color(0xFF1E2D4A),
+                        color = Color(0xFF162540),
                         style = Stroke(width = strokeWidth)
                     )
-                    // Consumed Arc
                     val sweepAngle = progress * 360f
                     drawArc(
                         brush = Brush.sweepGradient(
@@ -337,35 +360,36 @@ fun QuotaGauge(
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = String.format(Locale.US, "%.2f", remainingGb),
+                        text = String.format(Locale.US, "%.1f Go", remainingGb),
                         color = NexusTextPrimary,
-                        fontSize = 32.sp,
+                        fontSize = 30.sp,
                         fontWeight = FontWeight.ExtraBold,
                         fontFamily = FontFamily.Monospace
                     )
                     Text(
-                        text = "Go Restants",
+                        text = "Restants",
                         color = NexusCyan,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "$percentage% consommé",
+                        text = String.format(Locale.US, "%.1f Go utilisés sur %.0f Go", usedGb, totalGb),
                         color = NexusTextMuted,
                         fontSize = 11.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Data stats bottom row
+            // Summary row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
-                QuotaItem(
-                    label = "Consommé",
+                QuotaSummaryColumn(
+                    label = "Utilisé",
                     value = String.format(Locale.US, "%.2f Go", usedGb),
                     color = NexusTextPrimary
                 )
@@ -375,8 +399,8 @@ fun QuotaGauge(
                         .width(1.dp)
                         .background(NexusCardBorder)
                 )
-                QuotaItem(
-                    label = "Attribué",
+                QuotaSummaryColumn(
+                    label = "Forfait Total",
                     value = String.format(Locale.US, "%.0f Go", totalGb),
                     color = NexusCyan
                 )
@@ -386,10 +410,10 @@ fun QuotaGauge(
                         .width(1.dp)
                         .background(NexusCardBorder)
                 )
-                QuotaItem(
-                    label = "Statut",
-                    value = if (remainingBytes > 0) "Actif" else "Épuisé",
-                    color = if (remainingBytes > 0) NexusGreen else NexusRed
+                QuotaSummaryColumn(
+                    label = "Consommé",
+                    value = "$percentage%",
+                    color = if (percentage < 85) NexusGreen else NexusAmber
                 )
             }
         }
@@ -397,11 +421,7 @@ fun QuotaGauge(
 }
 
 @Composable
-private fun QuotaItem(
-    label: String,
-    value: String,
-    color: Color
-) {
+private fun QuotaSummaryColumn(label: String, value: String, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(text = label, color = NexusTextSecondary, fontSize = 11.sp)
         Spacer(modifier = Modifier.height(2.dp))
@@ -424,7 +444,7 @@ fun VpnPowerButton(
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 1.14f,
+        targetValue = 1.15f,
         animationSpec = infiniteRepeatable(
             animation = tween(1200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
@@ -433,11 +453,11 @@ fun VpnPowerButton(
     )
 
     val (glowColor, buttonColor, statusText) = when (status) {
-        VpnStatus.CONNECTED -> Triple(NexusGlowGreen, NexusGreen, "CONNECTÉ • SÉCURISÉ")
-        VpnStatus.CONNECTING -> Triple(NexusGlowCyan, NexusCyan, "CONNEXION EN COURS...")
-        VpnStatus.DISCONNECTING -> Triple(NexusGlowCyan, NexusAmber, "DÉCONNEXION...")
-        VpnStatus.ERROR -> Triple(Color(0x33EF4444), NexusRed, "ERREUR CONNEXION")
-        VpnStatus.DISCONNECTED -> Triple(Color.Transparent, Color(0xFF1E2D4A), "APPUYER POUR ACTIVER")
+        VpnStatus.CONNECTED -> Triple(NexusGlowGreen, NexusGreen, "Connecté")
+        VpnStatus.CONNECTING -> Triple(NexusGlowCyan, NexusCyan, "Vérification...")
+        VpnStatus.DISCONNECTING -> Triple(NexusGlowCyan, NexusAmber, "Déconnexion...")
+        VpnStatus.ERROR -> Triple(Color(0x33EF4444), NexusRed, "Erreur")
+        VpnStatus.DISCONNECTED -> Triple(Color.Transparent, Color(0xFF1E2D4A), "Déconnecté")
     }
 
     Column(
@@ -448,7 +468,6 @@ fun VpnPowerButton(
             contentAlignment = Alignment.Center,
             modifier = Modifier.size(150.dp)
         ) {
-            // Pulsing background ring when connecting or connected
             if (status == VpnStatus.CONNECTED || status == VpnStatus.CONNECTING) {
                 Box(
                     modifier = Modifier
@@ -459,7 +478,6 @@ fun VpnPowerButton(
                 )
             }
 
-            // Outer metallic border
             Box(
                 modifier = Modifier
                     .size(126.dp)
@@ -468,7 +486,6 @@ fun VpnPowerButton(
                     .border(3.dp, buttonColor.copy(alpha = 0.8f), CircleShape)
             )
 
-            // Inner button
             Surface(
                 onClick = onClick,
                 shape = CircleShape,
@@ -483,7 +500,7 @@ fun VpnPowerButton(
                         CircularProgressIndicator(
                             color = NexusCyan,
                             strokeWidth = 3.dp,
-                            modifier = Modifier.size(60.dp)
+                            modifier = Modifier.size(54.dp)
                         )
                     } else {
                         Icon(
@@ -507,10 +524,10 @@ fun VpnPowerButton(
             Text(
                 text = statusText,
                 color = buttonColor,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                letterSpacing = 0.5.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
             )
         }
     }
@@ -518,7 +535,7 @@ fun VpnPowerButton(
 
 @Composable
 fun MetricTile(
-    icon: String,
+    icon: ImageVector,
     title: String,
     value: String,
     accentColor: Color,
@@ -537,11 +554,16 @@ fun MetricTile(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(text = icon, fontSize = 16.sp)
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(18.dp)
+                )
                 Text(
                     text = title,
                     color = NexusTextSecondary,
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Medium
                 )
             }

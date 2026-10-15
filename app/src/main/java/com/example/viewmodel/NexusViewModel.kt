@@ -2,10 +2,8 @@ package com.example.viewmodel
 
 import android.app.Application
 import android.content.Context
-import android.net.VpnService
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.data.model.AfricanCountries
 import com.example.data.model.ApprovalStatus
 import com.example.data.model.CommunicationChannel
 import com.example.data.model.ConnectionStats
@@ -15,7 +13,7 @@ import com.example.data.model.LogEntry
 import com.example.data.model.LogLevel
 import com.example.data.model.RegistrationRequest
 import com.example.data.model.UserSession
-import com.example.data.model.VpnConfig
+import com.example.data.model.VpnPreferences
 import com.example.data.model.VpnStatus
 import com.example.data.repository.NexusRepository
 import com.example.vpn.NexusVpnService
@@ -37,11 +35,13 @@ data class NexusUiState(
     val vpnStatus: VpnStatus = VpnStatus.DISCONNECTED,
     val stats: ConnectionStats = ConnectionStats(),
     val logs: List<LogEntry> = emptyList(),
-    val config: VpnConfig = VpnConfig(),
+    val preferences: VpnPreferences = VpnPreferences(),
     val deviceInfo: DeviceInfo,
     val isSubmitting: Boolean = false,
     val isCheckingStatus: Boolean = false,
+    val isSyncingAccount: Boolean = false,
     val feedbackMessage: String? = null,
+    val serverDisconnectAlert: String? = null,
     val activeTab: MainTab = MainTab.DASHBOARD
 )
 
@@ -54,28 +54,34 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
             userSession = repository.getUserSession(),
             savedRegistration = repository.getSavedRegistration(),
             approvalStatus = repository.getApprovalStatus(),
-            config = repository.getVpnConfig(),
+            preferences = repository.getPreferences(),
             deviceInfo = repository.getDeviceInfo()
         )
     )
     val uiState = _uiState.asStateFlow()
 
     init {
-        // Observe VPN status from service
+        // Observe VPN connection state
         viewModelScope.launch {
             NexusVpnService.vpnStatus.collect { status ->
                 _uiState.update { it.copy(vpnStatus = status) }
+                // Refresh quota whenever vpn state transitions
+                val currentSession = repository.getUserSession()
+                if (currentSession != null) {
+                    _uiState.update { it.copy(userSession = currentSession) }
+                }
             }
         }
 
-        // Observe VPN live metrics
+        // Observe live real connection metrics
         viewModelScope.launch {
             NexusVpnService.stats.collect { stats ->
-                _uiState.update { it.copy(stats = stats) }
+                val currentSession = repository.getUserSession()
+                _uiState.update { it.copy(stats = stats, userSession = currentSession ?: it.userSession) }
             }
         }
 
-        // Observe VPN logs
+        // Observe connection logs
         viewModelScope.launch {
             NexusVpnService.logsFlow.collect { entry ->
                 _uiState.update { current ->
@@ -84,19 +90,19 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Real-time quota consumption from VPN traffic
+        // Observe remote disconnect events from Web Panel
         viewModelScope.launch {
-            NexusVpnService.consumedBytesFlow.collect { addedBytes ->
-                repository.updateQuotaConsumed(addedBytes)
-                val updatedSession = repository.getUserSession()
-                if (updatedSession != null) {
-                    _uiState.update { it.copy(userSession = updatedSession) }
+            NexusVpnService.disconnectEvent.collect { reason ->
+                _uiState.update {
+                    it.copy(
+                        serverDisconnectAlert = reason,
+                        feedbackMessage = reason
+                    )
                 }
             }
         }
 
-        // Add initial system log
-        NexusVpnService.log(LogLevel.INFO, "[SYSTEM] Nexus Tunnel Client démarré. Prêt.")
+        NexusVpnService.log(LogLevel.INFO, "[CLIENT] Moteur Nexus Tunnel prêt. Protection active.")
     }
 
     fun submitRegistration(
@@ -126,7 +132,7 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
                 contactDetail = trimmedContact,
                 deviceInfo = repository.getDeviceInfo()
             )
-            val result = repository.submitMembershipRequest(req)
+            val result = repository.submitAccessRequest(req)
             val updatedStatus = repository.getApprovalStatus()
             val updatedSession = repository.getUserSession()
 
@@ -136,17 +142,17 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
                     savedRegistration = req,
                     approvalStatus = updatedStatus,
                     userSession = updatedSession,
-                    feedbackMessage = result.getOrNull() ?: "Demande envoyée."
+                    feedbackMessage = result.getOrNull() ?: "Demande envoyée au Web Panel."
                 )
             }
-            NexusVpnService.log(LogLevel.SUCCESS, "[REGISTER] Demande soumise pour $trimmedName ($trimmedContact)")
+            NexusVpnService.log(LogLevel.SUCCESS, "[DEMANDE] Transmise pour $trimmedName")
         }
     }
 
     fun checkApprovalStatus() {
         viewModelScope.launch {
             _uiState.update { it.copy(isCheckingStatus = true) }
-            val result = repository.checkMembershipStatus()
+            val result = repository.checkApprovalStatus()
             val status = result.getOrDefault(repository.getApprovalStatus())
             val session = repository.getUserSession()
 
@@ -156,9 +162,9 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
                     approvalStatus = status,
                     userSession = session,
                     feedbackMessage = when (status) {
-                        ApprovalStatus.APPROVED -> "Félicitations ! Votre demande a été approuvée par l'administrateur !"
-                        ApprovalStatus.REJECTED -> "Votre demande a été refusée par l'administrateur."
-                        ApprovalStatus.PENDING -> "Demande toujours en attente de validation."
+                        ApprovalStatus.APPROVED -> "Accès validé par l'administrateur ! Profil activé."
+                        ApprovalStatus.REJECTED -> "Demande refusée par l'administrateur."
+                        ApprovalStatus.PENDING -> "Demande en cours d'examen par le Web Panel."
                         ApprovalStatus.NOT_SUBMITTED -> "Aucune demande en cours."
                     }
                 )
@@ -169,17 +175,17 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
     fun activateToken(rawToken: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isSubmitting = true) }
-            val result = repository.verifyAndActivateToken(rawToken)
+            val result = repository.activateToken(rawToken)
             result.onSuccess { session ->
                 _uiState.update {
                     it.copy(
                         isSubmitting = false,
                         userSession = session,
                         approvalStatus = ApprovalStatus.APPROVED,
-                        feedbackMessage = "Token activé avec succès ! Quota et UID attribués."
+                        feedbackMessage = "Token vérifié avec succès ! Quota et accès activés."
                     )
                 }
-                NexusVpnService.log(LogLevel.SUCCESS, "[AUTH] Token activé : UID ${session.uid}")
+                NexusVpnService.log(LogLevel.SUCCESS, "[AUTH] Token activé pour ${session.fullName}")
             }.onFailure { err ->
                 _uiState.update {
                     it.copy(
@@ -191,16 +197,29 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun simulateAdminApproval() {
-        val session = repository.simulateAdminApprovalForTesting()
-        _uiState.update {
-            it.copy(
-                userSession = session,
-                approvalStatus = ApprovalStatus.APPROVED,
-                feedbackMessage = "Simulation : Adhésion validée par l'administrateur !"
-            )
+    // Three dots menu: "Actualiser le compte" (Sync quota, expiration & dynamic config from Web Panel)
+    fun syncAccount() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSyncingAccount = true) }
+            val res = repository.syncAccountWithServer()
+            res.onSuccess { updated ->
+                _uiState.update {
+                    it.copy(
+                        isSyncingAccount = false,
+                        userSession = updated,
+                        feedbackMessage = "Compte synchronisé avec le Web Panel !"
+                    )
+                }
+                NexusVpnService.log(LogLevel.SUCCESS, "[SYNC] Quota et configuration mis à jour depuis le serveur.")
+            }.onFailure {
+                _uiState.update {
+                    it.copy(
+                        isSyncingAccount = false,
+                        feedbackMessage = "Impossible de contacter le Web Panel."
+                    )
+                }
+            }
         }
-        NexusVpnService.log(LogLevel.SUCCESS, "[ADMIN SIMULATION] Adhésion approuvée avec UID: ${session.uid}")
     }
 
     fun toggleVpnConnection(context: Context) {
@@ -208,17 +227,7 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
         if (current == VpnStatus.CONNECTED || current == VpnStatus.CONNECTING) {
             NexusVpnService.stop(context)
         } else {
-            val session = _uiState.value.userSession
-            val config = _uiState.value.config
-            val uid = session?.uid ?: "default_uid"
-            val host = config.customSni.ifBlank { "nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio" }
-
-            NexusVpnService.start(
-                context = context,
-                host = host,
-                uid = uid,
-                transport = config.transport
-            )
+            NexusVpnService.start(context)
         }
     }
 
@@ -226,13 +235,10 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(activeTab = tab) }
     }
 
-    fun updateConfig(newConfig: VpnConfig) {
-        repository.saveVpnConfig(newConfig)
-        if (newConfig.webPanelUrl != repository.getBaseUrl()) {
-            repository.updateBaseUrl(newConfig.webPanelUrl)
-        }
-        _uiState.update { it.copy(config = newConfig, feedbackMessage = "Configuration enregistrée.") }
-        NexusVpnService.log(LogLevel.INFO, "[CONFIG] Paramètres VLESS mis à jour.")
+    fun updatePreferences(newPrefs: VpnPreferences) {
+        repository.savePreferences(newPrefs)
+        _uiState.update { it.copy(preferences = newPrefs, feedbackMessage = "Préférences enregistrées.") }
+        NexusVpnService.log(LogLevel.INFO, "[CONFIG] Paramètres réseau mis à jour.")
     }
 
     fun clearLogs() {
@@ -240,18 +246,24 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun logout() {
+        NexusVpnService.stop(getApplication())
         repository.clearSessionAndLogout()
         _uiState.update {
             it.copy(
                 userSession = null,
+                savedRegistration = null,
                 approvalStatus = ApprovalStatus.NOT_SUBMITTED,
-                feedbackMessage = "Déconnexion réussie."
+                feedbackMessage = "Session réinitialisée."
             )
         }
-        NexusVpnService.log(LogLevel.WARN, "[LOGOUT] Profil réinitialisé.")
+        NexusVpnService.log(LogLevel.WARN, "[LOGOUT] Profil déconnecté.")
     }
 
     fun dismissFeedback() {
         _uiState.update { it.copy(feedbackMessage = null) }
+    }
+
+    fun dismissDisconnectAlert() {
+        _uiState.update { it.copy(serverDisconnectAlert = null) }
     }
 }

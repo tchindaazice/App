@@ -14,19 +14,30 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Router
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,7 +49,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.ConnectionStats
 import com.example.data.model.UserSession
-import com.example.data.model.VpnConfig
 import com.example.data.model.VpnStatus
 import com.example.ui.components.MetricTile
 import com.example.ui.components.QuotaGauge
@@ -60,101 +70,138 @@ fun DashboardScreen(
     session: UserSession,
     vpnStatus: VpnStatus,
     stats: ConnectionStats,
-    config: VpnConfig,
-    onToggleVpn: () -> Unit
+    isSyncing: Boolean,
+    onToggleVpn: () -> Unit,
+    onSyncAccount: () -> Unit
 ) {
     val scrollState = rememberScrollState()
+    var showMenu by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(NexusDarkBg)
             .verticalScroll(scrollState)
-            .padding(horizontal = 18.dp, vertical = 12.dp)
+            .padding(horizontal = 18.dp, vertical = 10.dp)
             .testTag("dashboard_screen"),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // User Profile & Status Header
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(NexusSurface)
-                .border(1.dp, NexusCardBorder, RoundedCornerShape(16.dp))
-                .padding(14.dp)
+        // TOP BAR WITH THREE DOTS MENU
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = session.countryFlag,
-                        fontSize = 26.sp,
-                        modifier = Modifier.padding(end = 10.dp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(NexusSurfaceVariant)
+                        .border(1.dp, NexusCardBorder, RoundedCornerShape(10.dp))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Security,
+                        contentDescription = null,
+                        tint = NexusCyan,
+                        modifier = Modifier.size(22.dp)
                     )
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = session.fullName,
-                                color = NexusTextPrimary,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Icon(
-                                imageVector = Icons.Default.VerifiedUser,
-                                contentDescription = "Vérifié",
-                                tint = NexusCyan,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "UID: ${session.uid}",
+                            text = session.fullName,
+                            color = NexusTextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = Icons.Default.Verified,
+                            contentDescription = "Vérifié",
+                            tint = NexusCyan,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                    Text(
+                        text = "ID : ${session.uid}",
+                        color = NexusCyan,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+
+            Box {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.testTag("dashboard_more_menu_button")
+                ) {
+                    if (isSyncing) {
+                        CircularProgressIndicator(
                             color = NexusCyan,
-                            fontSize = 11.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.SemiBold
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Options",
+                            tint = NexusTextPrimary
                         )
                     }
                 }
 
-                Surface(
-                    color = NexusGlowCyan,
-                    shape = RoundedCornerShape(8.dp)
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                    modifier = Modifier.background(NexusSurface)
                 ) {
-                    Text(
-                        text = "VLESS PRO",
-                        color = NexusCyan,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Sync,
+                                    contentDescription = null,
+                                    tint = NexusCyan,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text("Actualiser le compte", color = NexusTextPrimary, fontSize = 14.sp)
+                            }
+                        },
+                        onClick = {
+                            showMenu = false
+                            onSyncAccount()
+                        },
+                        modifier = Modifier.testTag("menu_sync_account")
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-        // REAL-TIME DATA QUOTA GAUGE (Prominently featured)
+        // REAL-TIME DATA QUOTA GAUGE
         QuotaGauge(
             usedBytes = session.quotaUsedBytes,
             totalBytes = session.quotaTotalBytes,
             expirationTimestamp = session.expirationTimestamp
         )
 
-        Spacer(modifier = Modifier.height(22.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // VPN CONNECT / DISCONNECT POWER BUTTON
+        // MAIN HERO VPN CONNECT / DISCONNECT BUTTON
         VpnPowerButton(
             status = vpnStatus,
             onClick = onToggleVpn
         )
 
-        Spacer(modifier = Modifier.height(22.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // LIVE CONNECTION METRICS GRID
+        // LIVE REAL METRICS (Download, Upload, Ping, Duration)
         val downloadSpeedFormatted = if (vpnStatus == VpnStatus.CONNECTED) {
             String.format(Locale.US, "%.1f Mo/s", stats.downloadSpeedBps / (1024.0 * 1024.0))
         } else "0.0 Ko/s"
@@ -171,14 +218,14 @@ fun DashboardScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             MetricTile(
-                icon = "⬇️",
+                icon = Icons.Default.ArrowDownward,
                 title = "Téléchargement",
                 value = downloadSpeedFormatted,
                 accentColor = NexusCyan,
                 modifier = Modifier.weight(1f)
             )
             MetricTile(
-                icon = "⬆️",
+                icon = Icons.Default.ArrowUpward,
                 title = "Envoi",
                 value = uploadSpeedFormatted,
                 accentColor = NexusGreen,
@@ -193,14 +240,14 @@ fun DashboardScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             MetricTile(
-                icon = "⚡",
-                title = "Latence / Ping",
+                icon = Icons.Default.Speed,
+                title = "Ping / Latence",
                 value = pingFormatted,
                 accentColor = if (stats.pingMs in 1..60) NexusGreen else NexusCyan,
                 modifier = Modifier.weight(1f)
             )
             MetricTile(
-                icon = "⏱️",
+                icon = Icons.Default.Timer,
                 title = "Durée Session",
                 value = durationFormatted,
                 accentColor = NexusTextPrimary,
@@ -208,103 +255,7 @@ fun DashboardScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // ACTIVE NODE & PROTOCOL CARD
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(NexusSurface)
-                .border(1.dp, NexusCardBorder, RoundedCornerShape(16.dp))
-                .padding(16.dp)
-        ) {
-            Column {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Router,
-                            contentDescription = null,
-                            tint = NexusCyan,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Nœud Nexus Tunnel Core",
-                            color = NexusTextPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(if (vpnStatus == VpnStatus.CONNECTED) NexusGreen else Color.Gray)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (vpnStatus == VpnStatus.CONNECTED) "En Ligne" else "Prêt",
-                            color = if (vpnStatus == VpnStatus.CONNECTED) NexusGreen else NexusTextMuted,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Hôte", color = NexusTextSecondary, fontSize = 12.sp)
-                    Text(
-                        text = "nexus-tunnel-d-ploiement-gestionnaire-vless...",
-                        color = NexusCyan,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Protocole / Transport", color = NexusTextSecondary, fontSize = 12.sp)
-                    Text(
-                        text = "VLESS + ${config.transport}",
-                        color = NexusTextPrimary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Chiffrement", color = NexusTextSecondary, fontSize = 12.sp)
-                    Text(
-                        text = "TLS 1.3 / ChaCha20-Poly1305",
-                        color = NexusGreen,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 

@@ -18,24 +18,26 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Router
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Smartphone
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -49,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -57,7 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.DeviceInfo
 import com.example.data.model.UserSession
-import com.example.data.model.VpnConfig
+import com.example.data.model.VpnPreferences
 import com.example.ui.theme.NexusCardBorder
 import com.example.ui.theme.NexusCyan
 import com.example.ui.theme.NexusDarkBg
@@ -71,23 +74,24 @@ import com.example.ui.theme.NexusTextSecondary
 
 @Composable
 fun SettingsScreen(
-    config: VpnConfig,
+    preferences: VpnPreferences,
     session: UserSession?,
     deviceInfo: DeviceInfo,
-    onSaveConfig: (VpnConfig) -> Unit,
+    isSyncing: Boolean,
+    onSavePreferences: (VpnPreferences) -> Unit,
+    onSyncAccount: () -> Unit,
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
-    var webPanelUrl by remember(config.webPanelUrl) { mutableStateOf(config.webPanelUrl) }
-    var transport by remember(config.transport) { mutableStateOf(config.transport) }
-    var customSni by remember(config.customSni) { mutableStateOf(config.customSni) }
-    var dnsPrimary by remember(config.dnsPrimary) { mutableStateOf(config.dnsPrimary) }
-    var dnsSecondary by remember(config.dnsSecondary) { mutableStateOf(config.dnsSecondary) }
-    var bypassLan by remember(config.bypassLan) { mutableStateOf(config.bypassLan) }
-    var killSwitch by remember(config.killSwitchEnabled) { mutableStateOf(config.killSwitchEnabled) }
-    var enableMux by remember(config.enableMux) { mutableStateOf(config.enableMux) }
+    var dnsPrimary by remember(preferences.dnsPrimary) { mutableStateOf(preferences.dnsPrimary) }
+    var dnsSecondary by remember(preferences.dnsSecondary) { mutableStateOf(preferences.dnsSecondary) }
+    var mtuText by remember(preferences.mtu) { mutableStateOf(preferences.mtu.toString()) }
+    var bypassLan by remember(preferences.bypassLan) { mutableStateOf(preferences.bypassLan) }
+    var killSwitch by remember(preferences.killSwitchEnabled) { mutableStateOf(preferences.killSwitchEnabled) }
+    var autoBoot by remember(preferences.autoConnectOnBoot) { mutableStateOf(preferences.autoConnectOnBoot) }
+    var showNotifStats by remember(preferences.showNotificationStats) { mutableStateOf(preferences.showNotificationStats) }
 
     var showLogoutDialog by remember { mutableStateOf(false) }
 
@@ -104,17 +108,17 @@ fun SettingsScreen(
             Icon(Icons.Default.Tune, contentDescription = null, tint = NexusCyan, modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = "Paramètres & Sécurité",
+                text = "Paramètres & Options Sécurisées",
                 color = NexusTextPrimary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
-        // SECTION 1: LIAISON WEB PANEL
-        SettingsSectionHeader(title = "LIAISON WEB PANEL DOCKER", icon = Icons.Default.Cloud)
+        // SECTION 1: GESTION DU COMPTE & SYNCHRONISATION
+        SectionHeader(title = "COMPTE & SYNCHRONISATION WEB PANEL", icon = Icons.Default.Person)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -124,43 +128,45 @@ fun SettingsScreen(
                 .padding(16.dp)
         ) {
             Column {
-                Text(
-                    text = "URL du Gestionnaire VLESS :",
-                    color = NexusTextSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                OutlinedTextField(
-                    value = webPanelUrl,
-                    onValueChange = { webPanelUrl = it },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = NexusSurfaceVariant,
-                        unfocusedContainerColor = NexusSurfaceVariant,
-                        focusedBorderColor = NexusCyan,
-                        unfocusedBorderColor = NexusCardBorder,
-                        focusedTextColor = NexusTextPrimary,
-                        unfocusedTextColor = NexusTextPrimary
-                    ),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("web_panel_url_field")
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(
-                        onClick = {
-                            webPanelUrl = "https://nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio"
-                        }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = session?.fullName ?: "Non défini",
+                            color = NexusTextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "UID : ${session?.uid ?: "---"}",
+                            color = NexusCyan,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            text = "Pays : ${session?.countryName ?: "---"} (${session?.countryCode ?: "--"})",
+                            color = NexusTextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = onSyncAccount,
+                        enabled = !isSyncing,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NexusCyan),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, NexusCyan.copy(alpha = 0.5f))
                     ) {
-                        Text("Rétablir par défaut", color = NexusCyan, fontSize = 12.sp)
+                        if (isSyncing) {
+                            CircularProgressIndicator(color = NexusCyan, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Actualiser", fontSize = 12.sp)
+                        }
                     }
                 }
             }
@@ -168,8 +174,8 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // SECTION 2: PROTOCOLE VLESS & SÉCURITÉ
-        SettingsSectionHeader(title = "OPTIONS PROTOCOLE VLESS", icon = Icons.Default.Security)
+        // SECTION 2: CONFIGURATION DU TUNNEL & RÉSEAU
+        SectionHeader(title = "SÉCURITÉ DU TUNNEL & DNS", icon = Icons.Default.Security)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -179,45 +185,55 @@ fun SettingsScreen(
                 .padding(16.dp)
         ) {
             Column {
-                // Transport Mode
-                Text(text = "Mode de Transport", color = NexusTextSecondary, fontSize = 12.sp)
-                Spacer(modifier = Modifier.height(6.dp))
+                // DNS Settings
+                Text(text = "Serveurs DNS Sécurisés", color = NexusTextSecondary, fontSize = 12.sp)
+                Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    listOf("WebSocket + TLS", "gRPC + TLS", "TCP + XTLS").forEach { mode ->
-                        val isSelected = transport == mode
-                        Surface(
-                            onClick = { transport = mode },
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isSelected) NexusCyan else NexusSurfaceVariant,
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (isSelected) NexusCyan else NexusCardBorder
-                            ),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                text = mode,
-                                color = if (isSelected) Color.Black else NexusTextPrimary,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-                        }
-                    }
+                    OutlinedTextField(
+                        value = dnsPrimary,
+                        onValueChange = { dnsPrimary = it },
+                        label = { Text("DNS 1", fontSize = 11.sp) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = NexusSurfaceVariant,
+                            unfocusedContainerColor = NexusSurfaceVariant,
+                            focusedBorderColor = NexusCyan,
+                            unfocusedBorderColor = NexusCardBorder,
+                            focusedTextColor = NexusTextPrimary,
+                            unfocusedTextColor = NexusTextPrimary
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = dnsSecondary,
+                        onValueChange = { dnsSecondary = it },
+                        label = { Text("DNS 2", fontSize = 11.sp) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = NexusSurfaceVariant,
+                            unfocusedContainerColor = NexusSurfaceVariant,
+                            focusedBorderColor = NexusCyan,
+                            unfocusedBorderColor = NexusCardBorder,
+                            focusedTextColor = NexusTextPrimary,
+                            unfocusedTextColor = NexusTextPrimary
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Custom SNI / Host
-                Text(text = "SNI / Host Spoofing", color = NexusTextSecondary, fontSize = 12.sp)
+                // MTU
+                Text(text = "Taille MTU (Paquets réseau)", color = NexusTextSecondary, fontSize = 12.sp)
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(
-                    value = customSni,
-                    onValueChange = { customSni = it },
+                    value = mtuText,
+                    onValueChange = { mtuText = it.filter { char -> char.isDigit() } },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = NexusSurfaceVariant,
@@ -231,57 +247,12 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // DNS settings
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "DNS Principal", color = NexusTextSecondary, fontSize = 12.sp)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = dnsPrimary,
-                            onValueChange = { dnsPrimary = it },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = NexusSurfaceVariant,
-                                unfocusedContainerColor = NexusSurfaceVariant,
-                                focusedBorderColor = NexusCyan,
-                                unfocusedBorderColor = NexusCardBorder,
-                                focusedTextColor = NexusTextPrimary,
-                                unfocusedTextColor = NexusTextPrimary
-                            ),
-                            shape = RoundedCornerShape(10.dp)
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "DNS Secondaire", color = NexusTextSecondary, fontSize = 12.sp)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = dnsSecondary,
-                            onValueChange = { dnsSecondary = it },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = NexusSurfaceVariant,
-                                unfocusedContainerColor = NexusSurfaceVariant,
-                                focusedBorderColor = NexusCyan,
-                                unfocusedBorderColor = NexusCardBorder,
-                                focusedTextColor = NexusTextPrimary,
-                                unfocusedTextColor = NexusTextPrimary
-                            ),
-                            shape = RoundedCornerShape(10.dp)
-                        )
-                    }
-                }
-
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Kill Switch Toggle
-                SettingSwitchRow(
-                    title = "Kill-Switch (Blocage de Fuite)",
-                    subtitle = "Couper tout le trafic si le VPN se déconnecte",
+                SettingSwitch(
+                    title = "Kill-Switch (Bloqueur de fuite)",
+                    subtitle = "Couper Internet si le tunnel sécurisé est interrompu",
                     checked = killSwitch,
                     onCheckedChange = { killSwitch = it }
                 )
@@ -289,59 +260,69 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Bypass LAN Toggle
-                SettingSwitchRow(
+                SettingSwitch(
                     title = "Contourner le Réseau Local (LAN)",
-                    subtitle = "Permettre l'accès aux imprimantes et routeurs locaux",
+                    subtitle = "Accéder aux appareils et imprimantes locales directement",
                     checked = bypassLan,
                     onCheckedChange = { bypassLan = it }
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Mux Toggle
-                SettingSwitchRow(
-                    title = "Multiplexage Connexions (Mux)",
-                    subtitle = "Optimise le ping et la bande passante",
-                    checked = enableMux,
-                    onCheckedChange = { enableMux = it }
+                // Auto Connect on Boot
+                SettingSwitch(
+                    title = "Connexion Automatique au Démarrage",
+                    subtitle = "Démarrer la protection dès l'allumage du téléphone",
+                    checked = autoBoot,
+                    onCheckedChange = { autoBoot = it }
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Status Notification Stats
+                SettingSwitch(
+                    title = "Statistiques dans la Notification",
+                    subtitle = "Afficher les mégaoctets dans la barre supérieure",
+                    checked = showNotifStats,
+                    onCheckedChange = { showNotifStats = it }
                 )
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Save Config Button
+        // Save Preferences Button
         Button(
             onClick = {
-                val newConfig = config.copy(
-                    webPanelUrl = webPanelUrl.trim(),
-                    transport = transport,
-                    customSni = customSni.trim(),
+                val parsedMtu = mtuText.toIntOrNull() ?: 1500
+                val newPrefs = preferences.copy(
                     dnsPrimary = dnsPrimary.trim(),
                     dnsSecondary = dnsSecondary.trim(),
+                    mtu = parsedMtu.coerceIn(1280, 1500),
                     killSwitchEnabled = killSwitch,
                     bypassLan = bypassLan,
-                    enableMux = enableMux
+                    autoConnectOnBoot = autoBoot,
+                    showNotificationStats = showNotifStats
                 )
-                onSaveConfig(newConfig)
-                Toast.makeText(context, "Paramètres VLESS enregistrés !", Toast.LENGTH_SHORT).show()
+                onSavePreferences(newPrefs)
+                Toast.makeText(context, "Préférences enregistrées avec succès.", Toast.LENGTH_SHORT).show()
             },
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = NexusCyan, contentColor = Color.Black),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp)
-                .testTag("save_settings_button")
+                .testTag("save_preferences_button")
         ) {
             Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("ENREGISTRER LA CONFIGURATION", fontWeight = FontWeight.Bold)
+            Text("ENREGISTRER LES PARAMÈTRES", fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // SECTION 3: PROFIL & APPAREIL LIÉ
-        SettingsSectionHeader(title = "PROFIL & MATÉRIEL SÉCURISÉ", icon = Icons.Default.Smartphone)
+        // SECTION 3: APPAREIL & SÉCURITÉ MATÉRIELLE
+        SectionHeader(title = "IDENTIFICATION MATÉRIELLE SÉCURISÉE", icon = Icons.Default.Fingerprint)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -351,19 +332,16 @@ fun SettingsScreen(
                 .padding(16.dp)
         ) {
             Column {
-                ProfileInfoRow(label = "Nom", value = session?.fullName ?: "Non défini")
-                ProfileInfoRow(label = "Pays", value = "${session?.countryFlag ?: "🌍"} ${session?.countryName ?: "Afrique"}")
-                ProfileInfoRow(label = session?.channel?.label ?: "Contact", value = session?.contactDetail ?: "Non défini")
-                ProfileInfoRow(label = "UID Attribué", value = session?.uid ?: "Non attribué", isMono = true)
-                ProfileInfoRow(label = "Empreinte ID Appareil", value = deviceInfo.deviceId, isMono = true)
-                ProfileInfoRow(label = "Modèle Appareil", value = "${deviceInfo.manufacturer} ${deviceInfo.model}")
-                ProfileInfoRow(label = "Système", value = deviceInfo.androidVersion)
+                InfoRow(label = "Empreinte Matérielle", value = deviceInfo.deviceId, isMono = true)
+                InfoRow(label = "Modèle Téléphone", value = "${deviceInfo.manufacturer} ${deviceInfo.model}")
+                InfoRow(label = "Version Android", value = deviceInfo.androidVersion)
+                InfoRow(label = "Chiffrement Stockage", value = "AES-256-GCM (Android KeyStore)", isMono = true)
             }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Logout / Reset
+        // Logout
         OutlinedButton(
             onClick = { showLogoutDialog = true },
             shape = RoundedCornerShape(12.dp),
@@ -374,7 +352,7 @@ fun SettingsScreen(
                 .height(48.dp)
                 .testTag("logout_button")
         ) {
-            Icon(Icons.Default.ExitToApp, contentDescription = null, tint = NexusRed)
+            Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, tint = NexusRed)
             Spacer(modifier = Modifier.width(8.dp))
             Text("Réinitialiser le profil / Déconnexion", fontWeight = FontWeight.Bold)
         }
@@ -387,11 +365,11 @@ fun SettingsScreen(
             onDismissRequest = { showLogoutDialog = false },
             containerColor = NexusSurface,
             title = {
-                Text("Déconnexion & Réinitialisation", color = NexusTextPrimary, fontWeight = FontWeight.Bold)
+                Text("Confirmation de Réinitialisation", color = NexusTextPrimary, fontWeight = FontWeight.Bold)
             },
             text = {
                 Text(
-                    "Voulez-vous réinitialiser votre session VPN ? Vous devrez à nouveau renseigner votre adhésion ou activer un token.",
+                    "Voulez-vous supprimer les identifiants chiffrés de cette session ? Vous devrez saisir un nouveau token pour vous reconnecter.",
                     color = NexusTextSecondary
                 )
             },
@@ -416,7 +394,7 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingsSectionHeader(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+private fun SectionHeader(title: String, icon: ImageVector) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(bottom = 8.dp)
@@ -434,7 +412,7 @@ private fun SettingsSectionHeader(title: String, icon: androidx.compose.ui.graph
 }
 
 @Composable
-private fun SettingSwitchRow(
+private fun SettingSwitch(
     title: String,
     subtitle: String,
     checked: Boolean,
@@ -463,7 +441,7 @@ private fun SettingSwitchRow(
 }
 
 @Composable
-private fun ProfileInfoRow(label: String, value: String, isMono: Boolean = false) {
+private fun InfoRow(label: String, value: String, isMono: Boolean = false) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

@@ -27,9 +27,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.HourglassTop
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -64,9 +65,6 @@ import com.example.ui.theme.NexusAmber
 import com.example.ui.theme.NexusCardBorder
 import com.example.ui.theme.NexusCyan
 import com.example.ui.theme.NexusDarkBg
-import com.example.ui.theme.NexusGlowCyan
-import com.example.ui.theme.NexusGreen
-import com.example.ui.theme.NexusRed
 import com.example.ui.theme.NexusSurface
 import com.example.ui.theme.NexusSurfaceVariant
 import com.example.ui.theme.NexusTextMuted
@@ -79,10 +77,8 @@ fun PendingApprovalScreen(
     deviceInfo: DeviceInfo,
     approvalStatus: ApprovalStatus,
     isChecking: Boolean,
-    webPanelUrl: String,
     onCheckStatus: () -> Unit,
     onActivateToken: (String) -> Unit,
-    onSimulateAdminApproval: () -> Unit,
     onEditRequest: () -> Unit
 ) {
     var showTokenDialog by remember { mutableStateOf(false) }
@@ -144,7 +140,7 @@ fun PendingApprovalScreen(
         Spacer(modifier = Modifier.height(18.dp))
 
         Text(
-            text = "DEMANDE TRANSMISE AU WEB PANEL",
+            text = "DEMANDE EN COURS D'EXAMEN",
             color = NexusAmber,
             fontSize = 17.sp,
             fontWeight = FontWeight.Black,
@@ -155,7 +151,7 @@ fun PendingApprovalScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "En attente de validation par un administrateur",
+            text = "En attente de validation par l'administrateur du Web Panel",
             color = NexusTextSecondary,
             fontSize = 13.sp,
             textAlign = TextAlign.Center
@@ -163,7 +159,6 @@ fun PendingApprovalScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Web Panel Host Pill
         Surface(
             color = NexusSurface,
             shape = RoundedCornerShape(10.dp),
@@ -171,15 +166,15 @@ fun PendingApprovalScreen(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
             ) {
-                Icon(Icons.Default.Wifi, contentDescription = null, tint = NexusCyan, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Security, contentDescription = null, tint = NexusCyan, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Serveur : nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio",
+                    text = "Serveur Nexus Tunnel Certifié",
                     color = NexusCyan,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
@@ -197,7 +192,7 @@ fun PendingApprovalScreen(
         ) {
             Column {
                 Text(
-                    text = "DÉTAILS DE LA DEMANDE SOUMISE",
+                    text = "RÉCAPITULATIF DE LA DEMANDE",
                     color = NexusCyan,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -209,19 +204,19 @@ fun PendingApprovalScreen(
                 DetailRow(label = "Nom complet", value = request?.fullName ?: "Inconnu")
                 DetailRow(
                     label = "Pays",
-                    value = "${request?.country?.flagEmoji ?: "🌍"} ${request?.country?.name ?: "Afrique"}"
+                    value = "${request?.country?.name ?: "Afrique"} (${request?.country?.code ?: "--"})"
                 )
                 DetailRow(
                     label = request?.channel?.label ?: "Moyen contact",
                     value = request?.contactDetail ?: ""
                 )
                 DetailRow(
-                    label = "ID Matériel",
+                    label = "Empreinte ID Appareil",
                     value = deviceInfo.deviceId,
                     isMono = true
                 )
                 DetailRow(
-                    label = "Appareil",
+                    label = "Modèle Appareil",
                     value = "${deviceInfo.manufacturer} ${deviceInfo.model}"
                 )
             }
@@ -238,12 +233,16 @@ fun PendingApprovalScreen(
                 .border(1.dp, Color(0xFF1E3A5F), RoundedCornerShape(12.dp))
                 .padding(14.dp)
         ) {
-            Text(
-                text = "📌 Dès que l'administrateur valide votre adhésion sur le Web Panel, il vous attribuera votre UID personnalisé, votre quota de données (Go) et votre clé VLESS. Vous pourrez alors vous connecter en un clic.",
-                color = NexusTextSecondary,
-                fontSize = 12.sp,
-                lineHeight = 18.sp
-            )
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(Icons.Default.Info, contentDescription = null, tint = NexusCyan, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "Dès que l'administrateur approuve votre compte sur le Web Panel, votre UID personnalisé, votre quota de données et votre clé VLESS seront automatiquement synchronisés.",
+                    color = NexusTextSecondary,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -265,17 +264,17 @@ fun PendingApprovalScreen(
             if (isChecking) {
                 CircularProgressIndicator(color = Color.Black, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 Spacer(modifier = Modifier.width(10.dp))
-                Text("Vérification en cours...", fontWeight = FontWeight.Bold)
+                Text("Vérification auprès du serveur...", fontWeight = FontWeight.Bold)
             } else {
                 Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(10.dp))
-                Text("VÉRIFIER LE STATUT EN TEMPS RÉEL", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                Text("ACTUALISER LE STATUT EN DIRECT", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
             }
         }
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Saisir le token manuellement
+        // Enter Token Button
         OutlinedButton(
             onClick = { showTokenDialog = true },
             shape = RoundedCornerShape(14.dp),
@@ -288,23 +287,10 @@ fun PendingApprovalScreen(
         ) {
             Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Saisir le Token d'accès de l'Admin", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Text("Saisir le Token d'accès Administrateur", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Instant admin approval simulation
-        TextButton(
-            onClick = onSimulateAdminApproval,
-            modifier = Modifier.testTag("simulate_approval_pending_button")
-        ) {
-            Text(
-                text = "⚡ Simuler l'approbation de l'administrateur (Test)",
-                color = NexusAmber,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
-            )
-        }
+        Spacer(modifier = Modifier.height(10.dp))
 
         TextButton(onClick = onEditRequest) {
             Text("Modifier ma demande d'adhésion", color = NexusTextSecondary, fontSize = 12.sp)
@@ -328,7 +314,7 @@ fun PendingApprovalScreen(
             text = {
                 Column {
                     Text(
-                        text = "Si l'administrateur vous a transmis votre token via WhatsApp ou Telegram, collez-le ici :",
+                        text = "Collez ici le token transmis par l'administrateur ou revendeur du Web Panel :",
                         color = NexusTextSecondary,
                         fontSize = 13.sp
                     )
@@ -336,7 +322,7 @@ fun PendingApprovalScreen(
                     OutlinedTextField(
                         value = tokenInput,
                         onValueChange = { tokenInput = it },
-                        placeholder = { Text("Ex: NX-VLESS-829A-PRO", color = NexusTextMuted, fontSize = 13.sp) },
+                        placeholder = { Text("Ex : NEXUS-VLESS-829A-PRO", color = NexusTextMuted, fontSize = 13.sp) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = NexusCyan,
                             unfocusedBorderColor = NexusCardBorder,
