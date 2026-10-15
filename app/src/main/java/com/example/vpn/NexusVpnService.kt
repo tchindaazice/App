@@ -161,10 +161,9 @@ class NexusVpnService : VpnService() {
         serviceScope.launch {
             try {
                 // 1. Initialise session with Web Panel
-                log(LogLevel.INFO, "[SESSION] Enregistrement de session auprès du Web Panel...")
-                val sessionRes = repository.startVpnSession()
-                val sessionId = sessionRes.getOrNull() ?: "vpn_sess_${System.currentTimeMillis()}"
-                log(LogLevel.SUCCESS, "[AUTH] Session active enregistrée : $sessionId")
+                log(LogLevel.INFO, "[SESSION] Initialisation du tunnel sécurisé...")
+                val session = repository.getUserSession()
+                log(LogLevel.SUCCESS, "[AUTH] Compte actif : ${session?.uid ?: "VLESS"}")
 
                 // 2. Fetch dynamic preferences without leaking in plaintext
                 val prefs = repository.getPreferences()
@@ -256,11 +255,11 @@ class NexusVpnService : VpnService() {
                     connectedDurationSeconds = durationSeconds
                 )
 
-                // 3. Heartbeat officiel envoyé au Web Panel
-                val heartbeatResult = repository.sendHeartbeat(deltaUp = deltaTx, deltaDown = deltaRx)
-                heartbeatResult.onSuccess { hb ->
-                    if (hb.shouldDisconnect) {
-                        val reason = hb.disconnectReason.ifBlank { "Quota de données atteint ou accès expiré." }
+                // 3. Rapport de trafic réel & Quota transmis au Web Panel
+                val trafficResult = repository.reportTrafficAndCheckQuota(deltaUp = deltaTx, deltaDown = deltaRx)
+                trafficResult.onSuccess { report ->
+                    if (report.shouldDisconnect) {
+                        val reason = report.reason ?: "Quota de données atteint ou accès expiré."
                         log(LogLevel.WARN, "[SERVEUR] Déconnexion ordonnée par le Web Panel : $reason")
                         _disconnectEvent.emit(reason)
                         disconnectTunnel(reason)
@@ -289,7 +288,10 @@ class NexusVpnService : VpnService() {
         heartbeatJob?.cancel()
 
         serviceScope.launch {
-            repository.disconnectVpnSession()
+            val session = repository.getUserSession()
+            if (session != null) {
+                repository.reportTrafficAndCheckQuota(0L, 0L)
+            }
         }
 
         try {

@@ -204,7 +204,7 @@ fun PendingApprovalScreen(
                 DetailRow(label = "Nom complet", value = request?.fullName ?: "Inconnu")
                 DetailRow(
                     label = "Pays",
-                    value = "${request?.country?.name ?: "Afrique"} (${request?.country?.code ?: "--"})"
+                    value = "${request?.country?.flagEmoji ?: "🌍"} ${request?.country?.name ?: "Afrique"} (${request?.country?.code ?: "--"})"
                 )
                 DetailRow(
                     label = request?.channel?.label ?: "Moyen contact",

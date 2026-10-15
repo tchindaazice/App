@@ -4,7 +4,7 @@ enum class CommunicationChannel(
     val label: String,
     val identifier: String
 ) {
-    WHATSAPP("WhatsApp", "WHATSAPP"),
+    WHATSAPP("Numéro WhatsApp", "WHATSAPP"),
     TELEGRAM("Telegram (@username)", "TELEGRAM")
 }
 
@@ -36,6 +36,7 @@ data class UserSession(
     val fullName: String,
     val countryName: String,
     val countryCode: String,
+    val countryFlag: String,
     val channel: CommunicationChannel,
     val contactDetail: String,
     val uid: String,
@@ -77,13 +78,16 @@ enum class LogLevel {
 }
 
 data class DynamicServerConfig(
-    val host: String? = null,
-    val port: Int = 443,
+    val protocol: String = "vless",
+    val serverAddress: String? = null,
+    val serverPort: Int = 443,
     val uuid: String? = null,
-    val transport: String = "ws",
-    val path: String = "/",
+    val wsPath: String = "/nexustunnel",
     val sni: String? = null,
-    val security: String = "tls",
+    val headerHost: String? = null,
+    val enableTls: Boolean = true,
+    val enableMux: Boolean = true,
+    val vlessUri: String? = null,
     val rawConfigJson: String? = null
 )
 

@@ -115,22 +115,12 @@ fun CountrySelector(
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Pro Country Badge
-                Surface(
-                    color = NexusCyan.copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(6.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, NexusCyan.copy(alpha = 0.4f)),
+                // Drapeau National Pro & Coloré
+                Text(
+                    text = selectedCountry.flagEmoji,
+                    fontSize = 28.sp,
                     modifier = Modifier.padding(end = 12.dp)
-                ) {
-                    Text(
-                        text = selectedCountry.code,
-                        color = NexusCyan,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
+                )
                 Column {
                     Text(
                         text = selectedCountry.name,
@@ -139,7 +129,7 @@ fun CountrySelector(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = "Indicatif : ${selectedCountry.dialCode}",
+                        text = "Indicatif : ${selectedCountry.dialCode} • ${selectedCountry.code}",
                         color = NexusTextSecondary,
                         fontSize = 12.sp
                     )
@@ -215,20 +205,11 @@ fun CountrySelector(
                                 }
                                 .padding(horizontal = 12.dp, vertical = 10.dp)
                         ) {
-                            Surface(
-                                color = if (isSelected) NexusCyan else NexusSurfaceVariant,
-                                shape = RoundedCornerShape(4.dp),
+                            Text(
+                                text = country.flagEmoji,
+                                fontSize = 24.sp,
                                 modifier = Modifier.padding(end = 12.dp)
-                            ) {
-                                Text(
-                                    text = country.code,
-                                    color = if (isSelected) Color.Black else NexusTextSecondary,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                                )
-                            }
+                            )
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = country.name,
@@ -237,7 +218,7 @@ fun CountrySelector(
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
                                 Text(
-                                    text = country.dialCode,
+                                    text = "${country.dialCode} • ${country.code}",
                                     color = NexusTextSecondary,
                                     fontSize = 12.sp
                                 )

@@ -147,7 +147,7 @@ fun SettingsScreen(
                             fontFamily = FontFamily.Monospace
                         )
                         Text(
-                            text = "Pays : ${session?.countryName ?: "---"} (${session?.countryCode ?: "--"})",
+                            text = "Pays : ${session?.countryFlag ?: "🌍"} ${session?.countryName ?: "---"} (${session?.countryCode ?: "--"})",
                             color = NexusTextSecondary,
                             fontSize = 12.sp
                         )

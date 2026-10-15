@@ -112,6 +112,11 @@ fun DashboardScreen(
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
+                            text = session.countryFlag,
+                            fontSize = 18.sp,
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                        Text(
                             text = session.fullName,
                             color = NexusTextPrimary,
                             fontSize = 15.sp,
