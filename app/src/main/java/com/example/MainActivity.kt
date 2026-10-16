@@ -1,7 +1,6 @@
 package com.example
 
 import android.app.Activity
-import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
 import android.widget.Toast
@@ -33,7 +32,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -194,11 +192,9 @@ class MainActivity : ComponentActivity() {
                                         session = uiState.userSession!!,
                                         vpnStatus = uiState.vpnStatus,
                                         stats = uiState.stats,
-                                        serverConfig = uiState.serverConfig,
                                         isSyncing = uiState.isSyncingAccount,
                                         onToggleVpn = onToggleVpnWithPermission,
-                                        onSyncAccount = { viewModel.syncAccount() },
-                                        onImportVless = { viewModel.importVlessConfig(it) }
+                                        onSyncAccount = { viewModel.syncAccount() }
                                     )
                                     MainTab.LOGS -> LogsScreen(
                                         logs = uiState.logs,
@@ -207,12 +203,9 @@ class MainActivity : ComponentActivity() {
                                     MainTab.SETTINGS -> SettingsScreen(
                                         preferences = uiState.preferences,
                                         session = uiState.userSession,
-                                        serverConfig = uiState.serverConfig,
                                         deviceInfo = uiState.deviceInfo,
                                         isSyncing = uiState.isSyncingAccount,
                                         onSavePreferences = { viewModel.updatePreferences(it) },
-                                        onSaveServerConfig = { viewModel.saveServerConfig(it) },
-                                        onImportVless = { viewModel.importVlessConfig(it) },
                                         onSyncAccount = { viewModel.syncAccount() },
                                         onLogout = { viewModel.logout() }
                                     )
