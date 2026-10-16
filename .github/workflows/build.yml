@@ -16,21 +16,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21 (required for AGP 9.1.1 & Gradle 9.3.1)
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Accept Android SDK licenses
-        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
+      - name: Accept Android SDK licenses & Install SDK 36
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" > /dev/null || true
 
       - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
 
-      - name: Prepare .env file for Secrets Gradle Plugin
+      - name: Prepare .env and local.properties for Secrets Plugin
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
@@ -44,7 +46,52 @@ jobs:
           if [ -n "$GEMINI_API_KEY" ]; then
             echo "" >> .env
             echo "GEMINI_API_KEY=$GEMINI_API_KEY" >> .env
+          else
+            echo "GEMINI_API_KEY=dummy_key" >> .env
           fi
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "GEMINI_API_KEY=${GEMINI_API_KEY:-dummy_key}" >> local.properties
+          cp .env secrets.properties || true
+
+      - name: Prepare google-services.json if missing
+        run: |
+          if [ ! -f app/google-services.json ]; then
+            cat << 'EOF' > app/google-services.json
+          {
+            "project_info": {
+              "project_number": "123456789012",
+              "project_id": "nexus-tunnel-mock",
+              "storage_bucket": "nexus-tunnel-mock.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:123456789012:android:1234567890abcdef",
+                  "android_client_info": {
+                    "package_name": "com.aistudio.nexustunnel.vprqza"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  {
+                    "current_key": "AIzaSyDummyKeyForCIBuildOnly123456789"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOF
+          fi
+
+      - name: Fix compileSdk minorApiLevel for CI compatibility
+        run: |
+          sed -i 's/compileSdk { version = release(36) { minorApiLevel = 1 } }/compileSdk = 36/g' app/build.gradle.kts
 
       - name: Setup Signing Environment Variables
         run: |
@@ -62,13 +109,10 @@ jobs:
 
       - name: Prepare debug.keystore & my-upload-key.jks
         run: |
-          # 1. Prepare debug.keystore
           if [ ! -f debug.keystore ]; then
             if [ -f debug.keystore.base64 ]; then
-              echo "Decoding debug.keystore from base64..."
               base64 -d debug.keystore.base64 > debug.keystore
             else
-              echo "Generating debug.keystore..."
               keytool -genkeypair -v \
                 -keystore debug.keystore \
                 -storepass android \
@@ -79,9 +123,7 @@ jobs:
             fi
           fi
 
-          # 2. Prepare my-upload-key.jks for release signing
           if [ ! -f my-upload-key.jks ]; then
-            echo "Generating release keystore my-upload-key.jks..."
             keytool -genkeypair -v \
               -keystore my-upload-key.jks \
               -storepass "$STORE_PASSWORD" \
@@ -92,10 +134,21 @@ jobs:
           fi
 
       - name: Build Debug APK
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
+        run: |
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+            ./gradlew :app:assembleDebug --no-daemon --stacktrace
+          else
+            gradle :app:assembleDebug --no-daemon --stacktrace
+          fi
 
       - name: Build Release APK
-        run: gradle :app:assembleRelease --no-daemon --stacktrace
+        run: |
+          if [ -f ./gradlew ]; then
+            ./gradlew :app:assembleRelease --no-daemon --stacktrace
+          else
+            gradle :app:assembleRelease --no-daemon --stacktrace
+          fi
 
       - name: Upload Debug APK
         if: always()
@@ -110,3 +163,4 @@ jobs:
         with:
           name: app-release-apk
           path: app/build/outputs/apk/release/*.apk
+          
