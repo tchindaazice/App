@@ -194,9 +194,11 @@ class MainActivity : ComponentActivity() {
                                         session = uiState.userSession!!,
                                         vpnStatus = uiState.vpnStatus,
                                         stats = uiState.stats,
+                                        serverConfig = uiState.serverConfig,
                                         isSyncing = uiState.isSyncingAccount,
                                         onToggleVpn = onToggleVpnWithPermission,
-                                        onSyncAccount = { viewModel.syncAccount() }
+                                        onSyncAccount = { viewModel.syncAccount() },
+                                        onImportVless = { viewModel.importVlessConfig(it) }
                                     )
                                     MainTab.LOGS -> LogsScreen(
                                         logs = uiState.logs,
@@ -205,9 +207,12 @@ class MainActivity : ComponentActivity() {
                                     MainTab.SETTINGS -> SettingsScreen(
                                         preferences = uiState.preferences,
                                         session = uiState.userSession,
+                                        serverConfig = uiState.serverConfig,
                                         deviceInfo = uiState.deviceInfo,
                                         isSyncing = uiState.isSyncingAccount,
                                         onSavePreferences = { viewModel.updatePreferences(it) },
+                                        onSaveServerConfig = { viewModel.saveServerConfig(it) },
+                                        onImportVless = { viewModel.importVlessConfig(it) },
                                         onSyncAccount = { viewModel.syncAccount() },
                                         onLogout = { viewModel.logout() }
                                     )
@@ -223,6 +228,8 @@ class MainActivity : ComponentActivity() {
                                     isChecking = uiState.isCheckingStatus,
                                     onCheckStatus = { viewModel.checkApprovalStatus() },
                                     onActivateToken = { viewModel.activateToken(it) },
+                                    onImportVless = { viewModel.importVlessConfig(it) },
+                                    onBypassToDashboard = { viewModel.bypassToDashboard() },
                                     onEditRequest = { viewModel.logout() }
                                 )
                             }
@@ -235,7 +242,9 @@ class MainActivity : ComponentActivity() {
                                     onSubmit = { name, country, channel, contact ->
                                         viewModel.submitRegistration(name, country, channel, contact)
                                     },
-                                    onActivateToken = { viewModel.activateToken(it) }
+                                    onActivateToken = { viewModel.activateToken(it) },
+                                    onImportVless = { viewModel.importVlessConfig(it) },
+                                    onBypassToDashboard = { viewModel.bypassToDashboard() }
                                 )
                             }
                         }

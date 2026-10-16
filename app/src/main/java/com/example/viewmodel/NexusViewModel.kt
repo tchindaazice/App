@@ -36,6 +36,7 @@ data class NexusUiState(
     val stats: ConnectionStats = ConnectionStats(),
     val logs: List<LogEntry> = emptyList(),
     val preferences: VpnPreferences = VpnPreferences(),
+    val serverConfig: com.example.data.model.DynamicServerConfig? = null,
     val deviceInfo: DeviceInfo,
     val isSubmitting: Boolean = false,
     val isCheckingStatus: Boolean = false,
@@ -55,6 +56,7 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
             savedRegistration = repository.getSavedRegistration(),
             approvalStatus = repository.getApprovalStatus(),
             preferences = repository.getPreferences(),
+            serverConfig = repository.getDynamicServerConfig(),
             deviceInfo = repository.getDeviceInfo()
         )
     )
@@ -257,6 +259,69 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         NexusVpnService.log(LogLevel.WARN, "[LOGOUT] Profil déconnecté.")
+    }
+
+    fun importVlessConfig(rawInput: String) {
+        val result = repository.importVlessUri(rawInput)
+        result.onSuccess { config ->
+            val updatedSession = repository.getUserSession()
+            _uiState.update {
+                it.copy(
+                    serverConfig = config,
+                    userSession = updatedSession,
+                    approvalStatus = ApprovalStatus.APPROVED,
+                    feedbackMessage = "Configuration VLESS importée avec succès !"
+                )
+            }
+            NexusVpnService.log(LogLevel.SUCCESS, "[CONFIG] Configuration VLESS active : ${config.serverAddress}:${config.serverPort} (SNI: ${config.sni})")
+        }.onFailure { err ->
+            _uiState.update {
+                it.copy(feedbackMessage = err.message ?: "Format VLESS invalide.")
+            }
+        }
+    }
+
+    fun saveServerConfig(newConfig: com.example.data.model.DynamicServerConfig) {
+        repository.saveDynamicServerConfig(newConfig)
+        _uiState.update {
+            it.copy(
+                serverConfig = newConfig,
+                feedbackMessage = "Configuration serveur VLESS enregistrée."
+            )
+        }
+        NexusVpnService.log(LogLevel.INFO, "[CONFIG] Serveur VLESS mis à jour : ${newConfig.serverAddress}:${newConfig.serverPort}")
+    }
+
+    fun bypassToDashboard() {
+        val currentSession = repository.getUserSession()
+        val devInfo = repository.getDeviceInfo()
+        val session = currentSession ?: com.example.data.model.UserSession(
+            fullName = "Membre Nexus VLESS",
+            countryName = "Afrique",
+            countryCode = "CM",
+            countryFlag = "🇨🇲",
+            channel = com.example.data.model.CommunicationChannel.WHATSAPP,
+            contactDetail = "",
+            uid = "nx_uid_${devInfo.deviceId.takeLast(6).lowercase()}",
+            token = "direct_access_token",
+            approvalStatus = ApprovalStatus.APPROVED,
+            quotaTotalBytes = 10L * 1024 * 1024 * 1024,
+            quotaUsedBytes = 0L,
+            expirationTimestamp = System.currentTimeMillis() + (30L * 24 * 3600 * 1000),
+            registeredDeviceId = devInfo.deviceId,
+            registeredAt = System.currentTimeMillis()
+        )
+        repository.saveUserSession(session)
+        val serverConfig = repository.getDynamicServerConfig()
+        _uiState.update {
+            it.copy(
+                userSession = session,
+                serverConfig = serverConfig,
+                approvalStatus = ApprovalStatus.APPROVED,
+                feedbackMessage = "Mode VLESS actif. Vous pouvez vous connecter !"
+            )
+        }
+        NexusVpnService.log(LogLevel.SUCCESS, "[MODE] Accès direct au tableau de bord VPN activé.")
     }
 
     fun dismissFeedback() {

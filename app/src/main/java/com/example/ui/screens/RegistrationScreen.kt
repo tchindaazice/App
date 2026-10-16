@@ -81,7 +81,9 @@ fun RegistrationScreen(
     deviceInfo: DeviceInfo,
     isSubmitting: Boolean,
     onSubmit: (fullName: String, country: Country, channel: CommunicationChannel, contact: String) -> Unit,
-    onActivateToken: (String) -> Unit
+    onActivateToken: (String) -> Unit,
+    onImportVless: (String) -> Unit = {},
+    onBypassToDashboard: () -> Unit = {}
 ) {
     var selectedCountry by remember { mutableStateOf(AfricanCountries.default()) }
     var selectedChannel by remember { mutableStateOf(CommunicationChannel.WHATSAPP) }
@@ -92,6 +94,8 @@ fun RegistrationScreen(
 
     var showTokenDialog by remember { mutableStateOf(false) }
     var tokenInput by remember { mutableStateOf("") }
+    var showVlessDialog by remember { mutableStateOf(false) }
+    var vlessInput by remember { mutableStateOf("") }
 
     val scrollState = rememberScrollState()
 
@@ -447,7 +451,99 @@ fun RegistrationScreen(
             Text("J'ai déjà un Token d'accès Administrateur", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
 
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Bouton Importer VLESS direct
+        OutlinedButton(
+            onClick = { showVlessDialog = true },
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF10B981)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .testTag("open_vless_dialog_button")
+        ) {
+            Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color(0xFF10B981))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Importer un Lien VLESS (vless://...)", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Bouton Accès Direct VPN
+        Button(
+            onClick = onBypassToDashboard,
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = NexusSurfaceVariant, contentColor = NexusTextPrimary),
+            border = androidx.compose.foundation.BorderStroke(1.dp, NexusCardBorder),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .testTag("direct_vpn_button")
+        ) {
+            Text("ACCÉDER DIRECTEMENT AU VPN", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        }
+
         Spacer(modifier = Modifier.height(20.dp))
+    }
+
+    if (showVlessDialog) {
+        AlertDialog(
+            onDismissRequest = { showVlessDialog = false },
+            containerColor = NexusSurface,
+            title = {
+                Text(
+                    text = "Importer Configuration VLESS",
+                    color = NexusTextPrimary,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Collez votre lien complet vless:// ou le JSON généré par le Web Panel :",
+                        color = NexusTextSecondary,
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = vlessInput,
+                        onValueChange = { vlessInput = it },
+                        placeholder = { Text("vless://uuid@192.179.18.100:443?type=ws&security=tls&path=%2Fnexustunnel...", color = NexusTextMuted, fontSize = 12.sp) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = NexusCyan,
+                            unfocusedBorderColor = NexusCardBorder,
+                            focusedTextColor = NexusTextPrimary,
+                            unfocusedTextColor = NexusTextPrimary
+                        ),
+                        minLines = 3,
+                        maxLines = 5,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val input = vlessInput.trim()
+                        if (input.isNotEmpty()) {
+                            showVlessDialog = false
+                            onImportVless(input)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NexusCyan, contentColor = Color.Black)
+                ) {
+                    Text("Importer & Connecter", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showVlessDialog = false }) {
+                    Text("Annuler", color = NexusTextSecondary)
+                }
+            }
+        )
     }
 
     // Modal Dialog for Manual Token Activation

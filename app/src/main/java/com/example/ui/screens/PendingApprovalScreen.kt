@@ -80,10 +80,14 @@ fun PendingApprovalScreen(
     isChecking: Boolean,
     onCheckStatus: () -> Unit,
     onActivateToken: (String) -> Unit,
+    onImportVless: (String) -> Unit = {},
+    onBypassToDashboard: () -> Unit = {},
     onEditRequest: () -> Unit
 ) {
     var showTokenDialog by remember { mutableStateOf(false) }
     var tokenInput by remember { mutableStateOf("") }
+    var showVlessDialog by remember { mutableStateOf(false) }
+    var vlessInput by remember { mutableStateOf("") }
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val radarPulse by infiniteTransition.animateFloat(
@@ -283,21 +287,113 @@ fun PendingApprovalScreen(
             border = androidx.compose.foundation.BorderStroke(1.dp, NexusCyan.copy(alpha = 0.6f)),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(50.dp)
+                .height(48.dp)
                 .testTag("enter_token_button")
         ) {
             Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Saisir le Token d'accès Administrateur", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Text("Saisir un Token d'accès Web Panel", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         }
 
         Spacer(modifier = Modifier.height(10.dp))
+
+        // Import VLESS Config Button
+        OutlinedButton(
+            onClick = { showVlessDialog = true },
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF10B981)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.6f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .testTag("import_vless_button")
+        ) {
+            Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color(0xFF10B981))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Importer un Lien VLESS (vless://...)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Direct Dashboard Bypass Button
+        Button(
+            onClick = onBypassToDashboard,
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = NexusSurfaceVariant, contentColor = NexusTextPrimary),
+            border = androidx.compose.foundation.BorderStroke(1.dp, NexusCardBorder),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .testTag("bypass_dashboard_button")
+        ) {
+            Text("ACCÉDER AU TABLEAU DE BORD VPN", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         TextButton(onClick = onEditRequest) {
             Text("Modifier ma demande d'adhésion", color = NexusTextSecondary, fontSize = 12.sp)
         }
 
         Spacer(modifier = Modifier.height(20.dp))
+    }
+
+    if (showVlessDialog) {
+        AlertDialog(
+            onDismissRequest = { showVlessDialog = false },
+            containerColor = NexusSurface,
+            title = {
+                Text(
+                    text = "Importer Configuration VLESS",
+                    color = NexusTextPrimary,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Collez votre lien complet vless:// ou un JSON de configuration VLESS (compatible Dark Tunnel & v2rayNG) :",
+                        color = NexusTextSecondary,
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = vlessInput,
+                        onValueChange = { vlessInput = it },
+                        placeholder = { Text("vless://uuid@192.179.18.100:443?type=ws&security=tls&path=%2Fnexustunnel...", color = NexusTextMuted, fontSize = 12.sp) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = NexusCyan,
+                            unfocusedBorderColor = NexusCardBorder,
+                            focusedTextColor = NexusTextPrimary,
+                            unfocusedTextColor = NexusTextPrimary
+                        ),
+                        minLines = 3,
+                        maxLines = 5,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val input = vlessInput.trim()
+                        if (input.isNotEmpty()) {
+                            showVlessDialog = false
+                            onImportVless(input)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NexusCyan, contentColor = Color.Black)
+                ) {
+                    Text("Importer & Activer", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showVlessDialog = false }) {
+                    Text("Annuler", color = NexusTextSecondary)
+                }
+            }
+        )
     }
 
     if (showTokenDialog) {

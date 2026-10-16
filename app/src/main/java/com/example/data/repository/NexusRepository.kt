@@ -52,8 +52,9 @@ class NexusRepository(private val context: Context) {
             level = HttpLoggingInterceptor.Level.NONE
         }
         val client = OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(10, TimeUnit.SECONDS)
+            .connectTimeout(4, TimeUnit.SECONDS)
+            .readTimeout(4, TimeUnit.SECONDS)
+            .writeTimeout(4, TimeUnit.SECONDS)
             .addInterceptor(logging)
             .build()
 
@@ -201,27 +202,95 @@ class NexusRepository(private val context: Context) {
             .apply()
     }
 
+    fun saveDynamicServerConfig(config: DynamicServerConfig) {
+        val map = mapOf(
+            "protocol" to config.protocol,
+            "serverAddress" to config.serverAddress,
+            "serverPort" to config.serverPort,
+            "uuid" to config.uuid,
+            "wsPath" to config.wsPath,
+            "sni" to config.sni,
+            "headerHost" to config.headerHost,
+            "enableTls" to config.enableTls,
+            "enableMux" to config.enableMux,
+            "vlessUri" to config.vlessUri
+        )
+        try {
+            val adapter = moshi.adapter(Map::class.java)
+            val json = adapter.toJson(map)
+            securityStorage.putEncrypted("sec_server_config_json", json)
+        } catch (_: Exception) {}
+    }
+
     fun getDynamicServerConfig(): DynamicServerConfig? {
-        val encryptedJson = securityStorage.getDecrypted("sec_server_config_json") ?: return null
+        val encryptedJson = securityStorage.getDecrypted("sec_server_config_json")
+        val currentUid = securityStorage.getDecrypted("sec_user_uid") ?: "83d5a4b2-a45b-48c1-9012-3456789abcde"
+        if (encryptedJson == null) {
+            return DynamicServerConfig(
+                protocol = "vless",
+                serverAddress = "192.179.18.100",
+                serverPort = 443,
+                uuid = currentUid,
+                wsPath = "/nexustunnel",
+                sni = "crashlyticsreports-pa.googleapis.com",
+                headerHost = "nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio",
+                enableTls = true,
+                enableMux = true
+            )
+        }
         return try {
             val adapter = moshi.adapter(Map::class.java)
-            val map = adapter.fromJson(encryptedJson) as? Map<*, *> ?: return null
-            DynamicServerConfig(
-                protocol = map["protocol"] as? String ?: "vless",
-                serverAddress = map["serverAddress"] as? String ?: map["host"] as? String,
-                serverPort = (map["serverPort"] as? Number ?: map["port"] as? Number)?.toInt() ?: 443,
-                uuid = map["uuid"] as? String ?: securityStorage.getDecrypted("sec_user_uid"),
-                wsPath = map["wsPath"] as? String ?: map["path"] as? String ?: "/nexustunnel",
-                sni = map["sni"] as? String,
-                headerHost = map["headerHost"] as? String ?: map["host"] as? String,
-                enableTls = map["enableTls"] as? Boolean ?: true,
-                enableMux = map["enableMux"] as? Boolean ?: true,
-                vlessUri = map["vlessUri"] as? String,
-                rawConfigJson = encryptedJson
-            )
+            val map = adapter.fromJson(encryptedJson) as? Map<*, *>
+            if (map != null) {
+                DynamicServerConfig(
+                    protocol = map["protocol"] as? String ?: "vless",
+                    serverAddress = map["serverAddress"] as? String ?: map["host"] as? String ?: "192.179.18.100",
+                    serverPort = (map["serverPort"] as? Number ?: map["port"] as? Number)?.toInt() ?: 443,
+                    uuid = map["uuid"] as? String ?: currentUid,
+                    wsPath = map["wsPath"] as? String ?: map["path"] as? String ?: "/nexustunnel",
+                    sni = map["sni"] as? String ?: "crashlyticsreports-pa.googleapis.com",
+                    headerHost = map["headerHost"] as? String ?: map["host"] as? String ?: "nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio",
+                    enableTls = map["enableTls"] as? Boolean ?: true,
+                    enableMux = map["enableMux"] as? Boolean ?: true,
+                    vlessUri = map["vlessUri"] as? String,
+                    rawConfigJson = encryptedJson
+                )
+            } else {
+                DynamicServerConfig(uuid = currentUid)
+            }
         } catch (_: Exception) {
-            null
+            DynamicServerConfig(uuid = currentUid)
         }
+    }
+
+    fun importVlessUri(rawInput: String): Result<DynamicServerConfig> {
+        val parsed = com.example.vpn.VlessConfigParser.parse(rawInput)
+            ?: return Result.failure(Exception("Lien VLESS invalide. Format attendu : vless://uuid@host:port?... ou JSON."))
+
+        saveDynamicServerConfig(parsed)
+
+        val session = getUserSession()
+        val devInfo = getDeviceInfo()
+        val newUid = parsed.uuid ?: session?.uid ?: "nx_uid_${devInfo.deviceId.takeLast(6).lowercase()}"
+        val updatedSession = UserSession(
+            fullName = session?.fullName ?: "Membre VLESS",
+            countryName = session?.countryName ?: "Afrique",
+            countryCode = session?.countryCode ?: "CM",
+            countryFlag = session?.countryFlag ?: "🇨🇲",
+            channel = session?.channel ?: CommunicationChannel.WHATSAPP,
+            contactDetail = session?.contactDetail ?: "",
+            uid = newUid,
+            token = session?.token ?: "token_direct_vless",
+            approvalStatus = ApprovalStatus.APPROVED,
+            quotaTotalBytes = session?.quotaTotalBytes ?: (10L * 1024 * 1024 * 1024),
+            quotaUsedBytes = session?.quotaUsedBytes ?: 0L,
+            expirationTimestamp = session?.expirationTimestamp ?: (System.currentTimeMillis() + 30L * 24 * 3600 * 1000),
+            registeredDeviceId = devInfo.deviceId,
+            registeredAt = session?.registeredAt ?: System.currentTimeMillis()
+        )
+        saveUserSession(updatedSession, null)
+        saveDynamicServerConfig(parsed.copy(uuid = newUid))
+        return Result.success(parsed)
     }
 
     fun updateQuotaFromRemote(usedBytes: Long, totalBytes: Long) {

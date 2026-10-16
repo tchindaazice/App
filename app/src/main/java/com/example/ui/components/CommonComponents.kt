@@ -435,7 +435,7 @@ fun VpnPowerButton(
 
     val (glowColor, buttonColor, statusText) = when (status) {
         VpnStatus.CONNECTED -> Triple(NexusGlowGreen, NexusGreen, "Connecté")
-        VpnStatus.CONNECTING -> Triple(NexusGlowCyan, NexusCyan, "Vérification...")
+        VpnStatus.CONNECTING -> Triple(NexusGlowCyan, NexusCyan, "Connexion...")
         VpnStatus.DISCONNECTING -> Triple(NexusGlowCyan, NexusAmber, "Déconnexion...")
         VpnStatus.ERROR -> Triple(Color(0x33EF4444), NexusRed, "Erreur")
         VpnStatus.DISCONNECTED -> Triple(Color.Transparent, Color(0xFF1E2D4A), "Déconnecté")
