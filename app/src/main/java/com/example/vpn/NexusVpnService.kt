@@ -157,18 +157,32 @@ class NexusVpnService : VpnService() {
 
     private fun startSecureTunnel() {
         _vpnStatus.value = VpnStatus.CONNECTING
-        startForeground(notificationId, buildNotification("Connecting...", "Connexion au serveur VLESS"))
+        startForeground(notificationId, buildNotification("Connecting...", "Connexion au serveur VLESS Nexus"))
 
         log(LogLevel.INFO, "[INIT] Connexion au serveur VLESS en cours...")
 
         serviceScope.launch {
             try {
-                // 1. Recover session and dynamic server config from Web Panel
                 val session = repository.getUserSession()
-                log(LogLevel.SUCCESS, "[AUTH] Compte membre actif : ${FormatUtils.formatMaskedUid(session?.uid)}")
+                val currentUid = session?.uid ?: ""
+                log(LogLevel.SUCCESS, "[AUTH] Compte membre actif : ${FormatUtils.formatMaskedUid(currentUid)}")
+
+                // 1. Handshake avec le Web Panel Nexus
+                val connectResult = repository.notifyVpnConnected(currentUid)
+                val connectRes = connectResult.getOrNull()
+
+                if (connectResult.isFailure || connectRes == null || !connectRes.success) {
+                    val err = connectRes?.message ?: "Connexion refusée par le serveur Web Panel."
+                    log(LogLevel.ERROR, "[REFUS] $err")
+                    _disconnectEvent.emit(err)
+                    disconnectTunnel(err)
+                    return@launch
+                }
+
+                log(LogLevel.SUCCESS, "[WEB PANEL] ${connectRes.message}")
 
                 val dynamicConfig = repository.getDynamicServerConfig()
-                log(LogLevel.INFO, "[CONFIG] Hôte VLESS : ${dynamicConfig?.serverAddress ?: "nexus-tunnel.ai.studio"}:${dynamicConfig?.serverPort ?: 443}")
+                log(LogLevel.INFO, "[CONFIG] Hôte VLESS : ${dynamicConfig?.serverAddress ?: "nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio"}:${dynamicConfig?.serverPort ?: 443}")
 
                 val prefs = repository.getPreferences()
                 val builder = Builder()
@@ -195,7 +209,7 @@ class NexusVpnService : VpnService() {
                     vlessEngine?.startEngine()
 
                     updateNotification("Connecté", "Trafic protégé VLESS+WS")
-                    startRealTrafficHeartbeat()
+                    startRealTrafficHeartbeat(currentUid)
                 } else {
                     log(LogLevel.ERROR, "[ERROR] Échec de création de l'interface réseau tun0.")
                     _vpnStatus.value = VpnStatus.ERROR
@@ -211,9 +225,9 @@ class NexusVpnService : VpnService() {
 
     /**
      * Heartbeat & Real Traffic Measurement Loop
-     * Updates notification with live Upload/Download speeds and total session traffic
+     * Updates notification with live Upload/Download speeds, time, and total traffic
      */
-    private fun startRealTrafficHeartbeat() {
+    private fun startRealTrafficHeartbeat(uid: String) {
         heartbeatJob?.cancel()
         heartbeatJob = serviceScope.launch {
             val myUid = Process.myUid()
@@ -273,7 +287,7 @@ class NexusVpnService : VpnService() {
                 val trafficResult = repository.reportTrafficAndCheckQuota(deltaUp = deltaTx, deltaDown = deltaRx)
                 trafficResult.onSuccess { report ->
                     if (report.shouldDisconnect) {
-                        val reason = report.reason ?: "Quota de données atteint ou accès expiré."
+                        val reason = report.reason ?: "Quota épuisé"
                         log(LogLevel.WARN, "[SERVEUR] Déconnexion ordonnée par le Web Panel : $reason")
                         _disconnectEvent.emit(reason)
                         disconnectTunnel(reason)

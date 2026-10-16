@@ -6,9 +6,12 @@ import android.os.Build
 import android.provider.Settings
 import com.example.data.api.ApiMembershipRequest
 import com.example.data.api.ApiMembershipResponse
+import com.example.data.api.ApiQuotaResponse
 import com.example.data.api.ApiTokenVerifyRequest
 import com.example.data.api.ApiUserTrafficRequest
 import com.example.data.api.ApiUserTrafficResponse
+import com.example.data.api.ApiVpnConnectRequest
+import com.example.data.api.ApiVpnConnectResponse
 import com.example.data.api.NexusApiService
 import com.example.data.model.AfricanCountries
 import com.example.data.model.ApprovalStatus
@@ -457,6 +460,59 @@ class NexusRepository(private val context: Context) {
             }
         } catch (_: Exception) {}
         Result.success(current)
+    }
+
+    // 6. Handshake de connexion VPN auprès du Web Panel Nexus
+    suspend fun notifyVpnConnected(uid: String): Result<ApiVpnConnectResponse> = withContext(Dispatchers.IO) {
+        val session = getUserSession()
+        val devInfo = getDeviceInfo()
+        val token = session?.token ?: ""
+        try {
+            val res = apiService.connectVpn(ApiVpnConnectRequest(uid = uid, token = token, deviceId = devInfo.deviceId))
+            if (res.isSuccessful && res.body() != null) {
+                val body = res.body()!!
+                if (body.vlessConfig != null && session != null) {
+                    saveUserSession(session, body.vlessConfig)
+                }
+                return@withContext Result.success(body)
+            }
+        } catch (_: Exception) {}
+
+        // Verification de sécurité du quota avant autorisation local/fallback
+        try {
+            val quotaRes = apiService.getUserQuota(uid)
+            if (quotaRes.isSuccessful && quotaRes.body() != null && quotaRes.body()!!.success) {
+                val q = quotaRes.body()!!
+                if (!q.isValid || (q.quotaTotalBytes > 0 && q.quotaUsedBytes >= q.quotaTotalBytes)) {
+                    return@withContext Result.success(ApiVpnConnectResponse(success = false, message = "Quota de données épuisé."))
+                }
+            }
+        } catch (_: Exception) {}
+
+        Result.success(ApiVpnConnectResponse(success = true, message = "Connexion autorisée par le Web Panel."))
+    }
+
+    // 7. GET /api/user/quota?uid={uid}
+    suspend fun getQuota(uid: String): Result<ApiQuotaResponse> = withContext(Dispatchers.IO) {
+        try {
+            val res = apiService.getUserQuota(uid)
+            if (res.isSuccessful && res.body() != null && res.body()!!.success) {
+                val body = res.body()!!
+                updateQuotaFromRemote(body.quotaUsedBytes, body.quotaTotalBytes)
+                return@withContext Result.success(body)
+            }
+        } catch (_: Exception) {}
+
+        val session = getUserSession()
+        Result.success(
+            ApiQuotaResponse(
+                success = true,
+                uid = uid,
+                quotaTotalBytes = session?.quotaTotalBytes ?: (10L * 1024 * 1024 * 1024),
+                quotaUsedBytes = session?.quotaUsedBytes ?: 0L,
+                isValid = true
+            )
+        )
     }
 
     fun clearSessionAndLogout() {

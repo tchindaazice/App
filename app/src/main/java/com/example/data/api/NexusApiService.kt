@@ -66,6 +66,22 @@ data class ApiUserTrafficResponse(
     val remainingBytes: Long? = null
 )
 
+// 6. Handshake Connexion VPN : POST /api/vpn/connect
+data class ApiVpnConnectRequest(
+    val uid: String,
+    val token: String,
+    val deviceId: String
+)
+
+data class ApiVpnConnectResponse(
+    val success: Boolean = true,
+    val message: String = "Connexion autorisée",
+    val sessionId: String? = null,
+    val quotaTotalBytes: Long? = null,
+    val quotaUsedBytes: Long? = null,
+    val vlessConfig: Map<String, Any?>? = null
+)
+
 interface NexusApiService {
 
     // Endpoints officiels du Web Panel Nexus Tunnel
@@ -94,4 +110,9 @@ interface NexusApiService {
     suspend fun reportUserTraffic(
         @Body request: ApiUserTrafficRequest
     ): Response<ApiUserTrafficResponse>
+
+    @POST("api/vpn/connect")
+    suspend fun connectVpn(
+        @Body request: ApiVpnConnectRequest
+    ): Response<ApiVpnConnectResponse>
 }
