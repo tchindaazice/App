@@ -24,13 +24,13 @@ object VlessConfigParser {
                 val protocol = json.optString("protocol", "vless")
                 val serverAddress = json.optString("serverAddress", json.optString("host", "192.179.18.100"))
                 val serverPort = json.optInt("serverPort", json.optInt("port", 443))
-                val uuid = json.optString("uuid", json.optString("uid", null))
+                val uuid = if (json.has("uuid")) json.optString("uuid") else if (json.has("uid")) json.optString("uid") else null
                 val wsPath = json.optString("wsPath", json.optString("path", "/nexustunnel"))
                 val sni = json.optString("sni", "crashlyticsreports-pa.googleapis.com")
                 val headerHost = json.optString("headerHost", json.optString("hostHeader", "nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio"))
                 val enableTls = json.optBoolean("enableTls", json.optBoolean("tls", true))
                 val enableMux = json.optBoolean("enableMux", json.optBoolean("mux", true))
-                val vlessUri = json.optString("vlessUri", null)
+                val vlessUri = if (json.has("vlessUri")) json.optString("vlessUri") else null
 
                 return DynamicServerConfig(
                     protocol = protocol,

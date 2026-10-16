@@ -12,10 +12,6 @@ jobs:
     name: Compile Debug & Release APK
     runs-on: ubuntu-latest
 
-    env:
-      STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || 'android' }}
-      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'android' }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -50,18 +46,42 @@ jobs:
             echo "GEMINI_API_KEY=$GEMINI_API_KEY" >> .env
           fi
 
-      - name: Generate required signing keystores (debug.keystore & my-upload-key.jks)
+      - name: Setup Signing Environment Variables
         run: |
-          if [ ! -f debug.keystore ]; then
-            keytool -genkeypair -v \
-              -keystore debug.keystore \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
+          STORE_PASS="${{ secrets.STORE_PASSWORD }}"
+          if [ -z "$STORE_PASS" ]; then
+            STORE_PASS="android"
           fi
+          KEY_PASS="${{ secrets.KEY_PASSWORD }}"
+          if [ -z "$KEY_PASS" ]; then
+            KEY_PASS="android"
+          fi
+          echo "STORE_PASSWORD=$STORE_PASS" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=$KEY_PASS" >> "$GITHUB_ENV"
+          echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/my-upload-key.jks" >> "$GITHUB_ENV"
+
+      - name: Prepare debug.keystore & my-upload-key.jks
+        run: |
+          # 1. Prepare debug.keystore
+          if [ ! -f debug.keystore ]; then
+            if [ -f debug.keystore.base64 ]; then
+              echo "Decoding debug.keystore from base64..."
+              base64 -d debug.keystore.base64 > debug.keystore
+            else
+              echo "Generating debug.keystore..."
+              keytool -genkeypair -v \
+                -keystore debug.keystore \
+                -storepass android \
+                -alias androiddebugkey \
+                -keypass android \
+                -keyalg RSA -keysize 2048 -validity 10000 \
+                -dname "CN=Android Debug,O=Android,C=US"
+            fi
+          fi
+
+          # 2. Prepare my-upload-key.jks for release signing
           if [ ! -f my-upload-key.jks ]; then
+            echo "Generating release keystore my-upload-key.jks..."
             keytool -genkeypair -v \
               -keystore my-upload-key.jks \
               -storepass "$STORE_PASSWORD" \
@@ -71,18 +91,22 @@ jobs:
               -dname "CN=NexusTunnel,O=AIStudio,C=US"
           fi
 
-      - name: Build Debug and Release APKs
-        run: gradle assembleDebug assembleRelease --no-daemon --stacktrace
+      - name: Build Debug APK
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Build Release APK
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
 
       - name: Upload Debug APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
           path: app/build/outputs/apk/debug/*.apk
 
       - name: Upload Release APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
           path: app/build/outputs/apk/release/*.apk
-         

@@ -197,32 +197,32 @@ class XrayVlessEngine(
 
         try {
             webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
-                override fun onOpen(ws: WebSocket, response: Response) {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
                     log(LogLevel.SUCCESS, "[XRAY] Canal WebSocket VLESS connecté vers $wsUrl")
                     connectionSuccess.set(true)
                     latch.countDown()
                 }
 
-                override fun onMessage(ws: WebSocket, bytes: ByteString) {
+                override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
                     val data = bytes.toByteArray()
                     bytesDownloaded.addAndGet(data.size.toLong())
                     incomingPackets.offer(data)
                 }
 
-                override fun onMessage(ws: WebSocket, text: String) {
+                override fun onMessage(webSocket: WebSocket, text: String) {
                     val data = text.toByteArray(Charsets.UTF_8)
                     bytesDownloaded.addAndGet(data.size.toLong())
                     incomingPackets.offer(data)
                 }
 
-                override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     val msg = t.message ?: "Routage local tun0 actif"
                     log(LogLevel.WARN, "[XRAY] Info WebSocket : $msg")
                     connectionSuccess.set(false)
                     latch.countDown()
                 }
 
-                override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                     log(LogLevel.WARN, "[XRAY] Canal WebSocket fermé ($code) : $reason")
                     isRunning.set(false)
                 }
