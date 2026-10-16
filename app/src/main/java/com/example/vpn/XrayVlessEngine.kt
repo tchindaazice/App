@@ -1,8 +1,9 @@
 package com.example.vpn
 
+import android.net.VpnService
 import com.example.data.model.DynamicServerConfig
-import com.example.vpn.NexusVpnService.Companion.log
 import com.example.data.model.LogLevel
+import com.example.vpn.NexusVpnService.Companion.log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -44,7 +45,8 @@ import javax.net.ssl.X509TrustManager
  */
 class XrayVlessEngine(
     private val config: DynamicServerConfig,
-    private val tunFd: FileDescriptor
+    private val tunFd: FileDescriptor,
+    private val vpnService: VpnService? = null
 ) {
 
     private val isRunning = AtomicBoolean(false)
@@ -56,40 +58,65 @@ class XrayVlessEngine(
     private val incomingPackets = ConcurrentLinkedQueue<ByteArray>()
     private val tcpStreams = ConcurrentHashMap<String, Long>()
 
+    private fun resolveActiveVpnService(): VpnService? {
+        if (vpnService != null) return vpnService
+        return try {
+            val companion = NexusVpnService.Companion
+            val getter = companion.javaClass.methods.firstOrNull {
+                it.name == "getInstance" && it.parameterCount == 0
+            }
+            (getter?.invoke(companion) as? VpnService) ?: run {
+                val field = NexusVpnService::class.java.declaredFields.firstOrNull {
+                    VpnService::class.java.isAssignableFrom(it.type)
+                }
+                field?.isAccessible = true
+                field?.get(null) as? VpnService
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun protectNetSocket(s: Socket): Socket {
+        try {
+            resolveActiveVpnService()?.protect(s)
+        } catch (_: Exception) {}
+        return s
+    }
+
+    private fun protectUdpSocket(s: DatagramSocket) {
+        try {
+            resolveActiveVpnService()?.protect(s)
+        } catch (_: Exception) {}
+    }
+
     // Custom SocketFactory that automatically calls VpnService.protect() on every socket created
     private val protectedSocketFactory = object : SocketFactory() {
         private val defaultFactory = getDefault()
 
-        private fun protectSocket(s: Socket): Socket {
-            try {
-                NexusVpnService.instance?.protect(s)
-            } catch (_: Exception) {}
-            return s
-        }
-
-        override fun createSocket(): Socket = protectSocket(defaultFactory.createSocket())
+        override fun createSocket(): Socket = protectNetSocket(defaultFactory.createSocket())
 
         override fun createSocket(host: String, port: Int): Socket {
-            val s = protectSocket(defaultFactory.createSocket())
+            val s = protectNetSocket(defaultFactory.createSocket())
             s.connect(InetSocketAddress(host, port), 10000)
             return s
         }
 
         override fun createSocket(host: String, port: Int, localHost: InetAddress, localPort: Int): Socket {
-            val s = protectSocket(defaultFactory.createSocket())
+            val s = protectNetSocket(defaultFactory.createSocket())
             s.bind(InetSocketAddress(localHost, localPort))
             s.connect(InetSocketAddress(host, port), 10000)
             return s
         }
 
         override fun createSocket(host: InetAddress, port: Int): Socket {
-            val s = protectSocket(defaultFactory.createSocket())
+            val s = protectNetSocket(defaultFactory.createSocket())
             s.connect(InetSocketAddress(host, port), 10000)
             return s
         }
 
         override fun createSocket(address: InetAddress, port: Int, localAddress: InetAddress, localPort: Int): Socket {
-            val s = protectSocket(defaultFactory.createSocket())
+            val s = protectNetSocket(defaultFactory.createSocket())
             s.bind(InetSocketAddress(localAddress, localPort))
             s.connect(InetSocketAddress(address, port), 10000)
             return s
@@ -112,33 +139,26 @@ class XrayVlessEngine(
                 override fun getDefaultCipherSuites(): Array<String> = rawSslFactory.defaultCipherSuites
                 override fun getSupportedCipherSuites(): Array<String> = rawSslFactory.supportedCipherSuites
 
-                private fun protect(s: Socket): Socket {
-                    try {
-                        NexusVpnService.instance?.protect(s)
-                    } catch (_: Exception) {}
-                    return s
-                }
-
                 override fun createSocket(s: Socket, host: String, port: Int, autoClose: Boolean): Socket {
-                    return protect(rawSslFactory.createSocket(s, host, port, autoClose))
+                    return protectNetSocket(rawSslFactory.createSocket(s, host, port, autoClose))
                 }
 
-                override fun createSocket(): Socket = protect(rawSslFactory.createSocket())
+                override fun createSocket(): Socket = protectNetSocket(rawSslFactory.createSocket())
 
                 override fun createSocket(host: String, port: Int): Socket {
-                    return protect(rawSslFactory.createSocket(host, port))
+                    return protectNetSocket(rawSslFactory.createSocket(host, port))
                 }
 
                 override fun createSocket(host: String, port: Int, localHost: InetAddress, localPort: Int): Socket {
-                    return protect(rawSslFactory.createSocket(host, port, localHost, localPort))
+                    return protectNetSocket(rawSslFactory.createSocket(host, port, localHost, localPort))
                 }
 
                 override fun createSocket(host: InetAddress, port: Int): Socket {
-                    return protect(rawSslFactory.createSocket(host, port))
+                    return protectNetSocket(rawSslFactory.createSocket(host, port))
                 }
 
                 override fun createSocket(address: InetAddress, port: Int, localAddress: InetAddress, localPort: Int): Socket {
-                    return protect(rawSslFactory.createSocket(address, port, localAddress, localPort))
+                    return protectNetSocket(rawSslFactory.createSocket(address, port, localAddress, localPort))
                 }
             }
 
@@ -254,15 +274,6 @@ class XrayVlessEngine(
 
     /**
      * VLESS Handshake Protocol (Version 0)
-     * Format :
-     * [1 byte Version 0x00]
-     * [16 bytes UUID]
-     * [1 byte Addons length 0x00]
-     * [1 byte Command 0x01 (TCP)]
-     * [2 bytes Port (big endian)]
-     * [1 byte Address Type 0x02 (Domain)]
-     * [1 byte Domain Length]
-     * [N bytes Domain]
      */
     private fun sendVlessHandshakeHeader(targetHost: String, targetPort: Int) {
         try {
@@ -294,10 +305,6 @@ class XrayVlessEngine(
 
     /**
      * Routeur de paquets IP bidirectionnel sur l'interface tun0
-     * Gère :
-     * 1. ICMP Ping (Echo Reply immédiat pour faire fonctionner le ping)
-     * 2. DNS UDP (Résolution DNS sur socket UDP protégé)
-     * 3. TCP Stream (Relais vers le tunnel WebSocket VLESS)
      */
     private fun startTunPacketRouter() {
         val inputStream = FileInputStream(tunFd)
@@ -377,17 +384,13 @@ class XrayVlessEngine(
             val icmpType = packet[ipHeaderLen].toInt() and 0xFF
             if (icmpType == 8) { // Echo Request
                 val reply = packet.clone()
-                // Swap IP src and dst
                 for (i in 0 until 4) {
                     val tmp = reply[12 + i]
                     reply[12 + i] = reply[16 + i]
                     reply[16 + i] = tmp
                 }
 
-                // Change ICMP type to 0 (Echo Reply)
                 reply[ipHeaderLen] = 0x00
-
-                // Recalculate ICMP checksum
                 reply[ipHeaderLen + 2] = 0
                 reply[ipHeaderLen + 3] = 0
                 var sum = 0
@@ -421,7 +424,6 @@ class XrayVlessEngine(
             val dstPort = ((packet[ipHeaderLen + 2].toInt() and 0xFF) shl 8) or
                     (packet[ipHeaderLen + 3].toInt() and 0xFF)
 
-            // DNS Query on Port 53
             if (dstPort == 53) {
                 val udpPayloadOffset = ipHeaderLen + 8
                 val udpPayloadLen = packet.size - udpPayloadOffset
@@ -432,7 +434,6 @@ class XrayVlessEngine(
                 }
             }
 
-            // Other UDP: forward to WebSocket
             webSocket?.send(packet.toByteString())
         } catch (_: Exception) {
             webSocket?.send(packet.toByteString())
@@ -447,7 +448,7 @@ class XrayVlessEngine(
             var socket: DatagramSocket? = null
             try {
                 socket = DatagramSocket()
-                NexusVpnService.instance?.protect(socket)
+                protectUdpSocket(socket)
                 socket.soTimeout = 3000
 
                 val dnsServer = InetAddress.getByName("1.1.1.1")
@@ -460,7 +461,6 @@ class XrayVlessEngine(
 
                 val dnsResponse = responseBuffer.copyOf(recvPacket.length)
 
-                // Build return IP + UDP packet
                 val ipHeaderLen = (originalPacket[0].toInt() and 0x0F) * 4
                 val totalLen = 20 + 8 + dnsResponse.size
                 val replyPacket = ByteArray(totalLen)
@@ -471,18 +471,15 @@ class XrayVlessEngine(
                 replyPacket[8] = 64.toByte() // TTL
                 replyPacket[9] = 17.toByte() // Protocol UDP
 
-                // Swap source and destination IP
-                System.arraycopy(originalPacket, 16, replyPacket, 12, 4) // Src = old Dst
-                System.arraycopy(originalPacket, 12, replyPacket, 16, 4) // Dst = old Src
+                System.arraycopy(originalPacket, 16, replyPacket, 12, 4)
+                System.arraycopy(originalPacket, 12, replyPacket, 16, 4)
 
-                // UDP Header
-                System.arraycopy(originalPacket, ipHeaderLen + 2, replyPacket, 20, 2) // Src Port = old Dst Port
-                System.arraycopy(originalPacket, ipHeaderLen, replyPacket, 22, 2)     // Dst Port = old Src Port
+                System.arraycopy(originalPacket, ipHeaderLen + 2, replyPacket, 20, 2)
+                System.arraycopy(originalPacket, ipHeaderLen, replyPacket, 22, 2)
                 val udpLen = 8 + dnsResponse.size
                 replyPacket[24] = (udpLen shr 8).toByte()
                 replyPacket[25] = (udpLen and 0xFF).toByte()
 
-                // UDP Data
                 System.arraycopy(dnsResponse, 0, replyPacket, 28, dnsResponse.size)
 
                 outputStream.write(replyPacket)
