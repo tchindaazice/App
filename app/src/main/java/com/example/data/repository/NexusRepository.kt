@@ -189,15 +189,35 @@ class NexusRepository(private val context: Context) {
         )
     }
 
+    fun getOrCreateDeterministicUuid(): String {
+        val stored = securityStorage.getDecrypted("sec_user_uid")
+        if (!stored.isNullOrBlank()) return stored
+        val devInfo = getDeviceInfo()
+        val deterministic = UUID.nameUUIDFromBytes("nexus_${devInfo.deviceId}".toByteArray(Charsets.UTF_8)).toString()
+        securityStorage.putEncrypted("sec_user_uid", deterministic)
+        return deterministic
+    }
+
     fun saveUserSession(session: UserSession, vlessConfigMap: Map<String, Any?>? = null) {
         securityStorage.putEncrypted("sec_user_uid", session.uid)
         securityStorage.putEncrypted("sec_user_token", session.token)
 
         if (vlessConfigMap != null) {
             try {
+                val mutableMap = vlessConfigMap.toMutableMap()
+                if (mutableMap["uuid"] == null || (mutableMap["uuid"] as? String).isNullOrBlank()) {
+                    mutableMap["uuid"] = session.uid
+                }
                 val adapter = moshi.adapter(Map::class.java)
-                val json = adapter.toJson(vlessConfigMap)
+                val json = adapter.toJson(mutableMap)
                 securityStorage.putEncrypted("sec_server_config_json", json)
+            } catch (_: Exception) {}
+        } else {
+            // Ensure server config is updated with the active session's UUID
+            try {
+                val currentConfig = getDynamicServerConfig() ?: DynamicServerConfig()
+                val updatedConfig = currentConfig.copy(uuid = session.uid)
+                saveDynamicServerConfig(updatedConfig)
             } catch (_: Exception) {}
         }
 
@@ -217,11 +237,12 @@ class NexusRepository(private val context: Context) {
     }
 
     fun saveDynamicServerConfig(config: DynamicServerConfig) {
+        val effectiveUuid = config.uuid?.takeIf { it.isNotBlank() } ?: getOrCreateDeterministicUuid()
         val map = mapOf(
             "protocol" to config.protocol,
             "serverAddress" to config.serverAddress,
             "serverPort" to config.serverPort,
-            "uuid" to config.uuid,
+            "uuid" to effectiveUuid,
             "wsPath" to config.wsPath,
             "sni" to config.sni,
             "headerHost" to config.headerHost,
@@ -238,7 +259,7 @@ class NexusRepository(private val context: Context) {
 
     fun getDynamicServerConfig(): DynamicServerConfig? {
         val encryptedJson = securityStorage.getDecrypted("sec_server_config_json")
-        val currentUid = securityStorage.getDecrypted("sec_user_uid") ?: "83d5a4b2-a45b-48c1-9012-3456789abcde"
+        val currentUid = securityStorage.getDecrypted("sec_user_uid") ?: getOrCreateDeterministicUuid()
         if (encryptedJson == null) {
             return DynamicServerConfig(
                 protocol = "vless",
@@ -260,7 +281,7 @@ class NexusRepository(private val context: Context) {
                     protocol = map["protocol"] as? String ?: "vless",
                     serverAddress = map["serverAddress"] as? String ?: map["host"] as? String ?: "192.179.18.100",
                     serverPort = (map["serverPort"] as? Number ?: map["port"] as? Number)?.toInt() ?: 443,
-                    uuid = map["uuid"] as? String ?: currentUid,
+                    uuid = (map["uuid"] as? String)?.takeIf { it.isNotBlank() } ?: currentUid,
                     wsPath = map["wsPath"] as? String ?: map["path"] as? String ?: "/nexustunnel",
                     sni = map["sni"] as? String ?: "crashlyticsreports-pa.googleapis.com",
                     headerHost = map["headerHost"] as? String ?: map["host"] as? String ?: "nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio",
@@ -356,7 +377,8 @@ class NexusRepository(private val context: Context) {
             val res = apiService.submitMembership(body)
             if (res.isSuccessful && res.body() != null) {
                 val data = res.body()!!
-                if (data.status.equals("APPROVED", ignoreCase = true) && !data.token.isNullOrBlank() && !data.uid.isNullOrBlank()) {
+                if (data.status.equals("APPROVED", ignoreCase = true) && !data.token.isNullOrBlank()) {
+                    val uid = data.uid?.takeIf { it.isNotBlank() } ?: UUID.nameUUIDFromBytes("nexus_${req.deviceInfo.deviceId}".toByteArray(Charsets.UTF_8)).toString()
                     val session = UserSession(
                         fullName = req.fullName,
                         countryName = req.country.name,
@@ -364,7 +386,7 @@ class NexusRepository(private val context: Context) {
                         countryFlag = req.country.flagEmoji,
                         channel = req.channel,
                         contactDetail = req.contactDetail,
-                        uid = data.uid,
+                        uid = uid,
                         token = data.token,
                         approvalStatus = ApprovalStatus.APPROVED,
                         quotaTotalBytes = data.quotaBytes ?: (10L * 1024 * 1024 * 1024),
@@ -393,7 +415,7 @@ class NexusRepository(private val context: Context) {
             if (res.isSuccessful && res.body() != null) {
                 val data = res.body()!!
                 if (data.status.equals("APPROVED", ignoreCase = true) && !data.token.isNullOrBlank()) {
-                    val uid = data.uid ?: "nx_uid_${devInfo.deviceId.takeLast(6).lowercase()}"
+                    val uid = data.uid?.takeIf { it.isNotBlank() } ?: UUID.nameUUIDFromBytes("nexus_${devInfo.deviceId}".toByteArray(Charsets.UTF_8)).toString()
                     val session = UserSession(
                         fullName = reg.fullName,
                         countryName = reg.country.name,
@@ -435,6 +457,7 @@ class NexusRepository(private val context: Context) {
             val res = apiService.verifyToken(ApiTokenVerifyRequest(token = token, deviceId = devInfo.deviceId))
             if (res.isSuccessful && res.body() != null && res.body()!!.success) {
                 val body = res.body()!!
+                val assignedUid = body.uid?.takeIf { it.isNotBlank() } ?: UUID.nameUUIDFromBytes("nexus_token_${token}_${devInfo.deviceId}".toByteArray(Charsets.UTF_8)).toString()
                 val session = UserSession(
                     fullName = fullName,
                     countryName = country.name,
@@ -442,7 +465,7 @@ class NexusRepository(private val context: Context) {
                     countryFlag = country.flagEmoji,
                     channel = channel,
                     contactDetail = contact,
-                    uid = body.uid ?: "nx_uid_${devInfo.deviceId.takeLast(6).lowercase()}",
+                    uid = assignedUid,
                     token = token,
                     approvalStatus = ApprovalStatus.APPROVED,
                     quotaTotalBytes = body.quotaBytes ?: (10L * 1024 * 1024 * 1024),
@@ -459,7 +482,7 @@ class NexusRepository(private val context: Context) {
         } catch (_: Exception) {}
 
         // Fallback for valid token generated by reseller / admin
-        val fallbackUid = "nx_uid_${Math.abs(token.hashCode()).toString(16)}"
+        val fallbackUid = UUID.nameUUIDFromBytes("nexus_reseller_${token}".toByteArray(Charsets.UTF_8)).toString()
         val session = UserSession(
             fullName = fullName,
             countryName = country.name,

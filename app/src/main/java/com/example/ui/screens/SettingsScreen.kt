@@ -98,6 +98,8 @@ fun SettingsScreen(
     var webPanelUrlText by remember(serverUrl) { mutableStateOf(serverUrl) }
     var showImportDialog by remember { mutableStateOf(false) }
     var importInputText by remember { mutableStateOf("") }
+    var showEditUuidDialog by remember { mutableStateOf(false) }
+    var editUuidText by remember { mutableStateOf("") }
 
     var dnsPrimary by remember(preferences.dnsPrimary) { mutableStateOf(preferences.dnsPrimary) }
     var dnsSecondary by remember(preferences.dnsSecondary) { mutableStateOf(preferences.dnsSecondary) }
@@ -226,9 +228,11 @@ fun SettingsScreen(
             val sSni = serverConfig?.sni ?: "crashlyticsreports-pa.googleapis.com"
             val sHost = serverConfig?.headerHost ?: "nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio"
             val sPath = serverConfig?.wsPath ?: "/nexustunnel"
+            val sUuid = serverConfig?.uuid?.takeIf { it.isNotBlank() } ?: session?.uid ?: "83d5a4b2-a45b-48c1-9012-3456789abcde"
 
             Column {
                 InfoRow(label = "Serveur Cible VLESS", value = "$sAddress:$sPort", isMono = true)
+                InfoRow(label = "UID / UUID VLESS", value = sUuid, isMono = true)
                 InfoRow(label = "SNI TLS", value = sSni, isMono = true)
                 InfoRow(label = "Host Header", value = sHost, isMono = true)
                 InfoRow(label = "Chemin WebSocket", value = sPath, isMono = true)
@@ -236,16 +240,36 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                OutlinedButton(
-                    onClick = { showImportDialog = true },
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NexusCyan),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, NexusCyan),
-                    modifier = Modifier.fillMaxWidth().testTag("import_vless_button")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Importer / Modifier Lien VLESS", fontSize = 12.sp)
+                    OutlinedButton(
+                        onClick = {
+                            editUuidText = sUuid
+                            showEditUuidDialog = true
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NexusCyan),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, NexusCyan),
+                        modifier = Modifier.weight(1f).testTag("edit_vless_uuid_button")
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Modifier l'UID", fontSize = 12.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = { showImportDialog = true },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NexusCyan),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, NexusCyan),
+                        modifier = Modifier.weight(1f).testTag("import_vless_button")
+                    ) {
+                        Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Importer Lien", fontSize = 12.sp)
+                    }
                 }
             }
         }
@@ -527,6 +551,76 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showImportDialog = false }) {
+                    Text("Annuler", color = NexusTextSecondary)
+                }
+            }
+        )
+    }
+
+    if (showEditUuidDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditUuidDialog = false },
+            containerColor = NexusSurface,
+            title = {
+                Text(
+                    text = "Modifier l'UID VLESS",
+                    color = NexusTextPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Entrez l'UID / UUID de votre compte attribué par le Web Panel pour le handshake VLESS :",
+                        color = NexusTextSecondary,
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = editUuidText,
+                        onValueChange = { editUuidText = it },
+                        placeholder = { Text("Ex: 83d5a4b2-a45b-48c1-9012-3456789abcde", fontSize = 12.sp, color = NexusTextMuted) },
+                        maxLines = 2,
+                        modifier = Modifier.fillMaxWidth().testTag("edit_uuid_dialog_input"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = NexusSurfaceVariant,
+                            unfocusedContainerColor = NexusSurfaceVariant,
+                            focusedBorderColor = NexusCyan,
+                            unfocusedBorderColor = NexusCardBorder,
+                            focusedTextColor = NexusTextPrimary,
+                            unfocusedTextColor = NexusTextPrimary
+                        )
+                    )
+                    if (session?.uid != null && session.uid != editUuidText) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(
+                            onClick = { editUuidText = session.uid },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("Utiliser l'UID du compte", color = NexusCyan, fontSize = 12.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val trimmed = editUuidText.trim()
+                        if (trimmed.isNotBlank()) {
+                            val cur = serverConfig ?: DynamicServerConfig()
+                            val updated = cur.copy(uuid = trimmed)
+                            onSaveServerConfig?.invoke(updated)
+                            Toast.makeText(context, "UID VLESS mis à jour !", Toast.LENGTH_SHORT).show()
+                            showEditUuidDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NexusCyan, contentColor = Color.Black)
+                ) {
+                    Text("Enregistrer")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditUuidDialog = false }) {
                     Text("Annuler", color = NexusTextSecondary)
                 }
             }

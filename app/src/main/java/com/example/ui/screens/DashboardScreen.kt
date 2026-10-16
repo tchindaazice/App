@@ -205,22 +205,32 @@ fun DashboardScreen(
                 .border(1.dp, NexusCardBorder.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
                 .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "VLESS: $sAddress:$sPort",
+                        color = NexusCyan,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "SNI: ${if (sSni.length > 20) sSni.take(17) + "..." else sSni}",
+                        color = NexusTextSecondary,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+                val sUuid = serverConfig?.uuid?.takeIf { it.isNotBlank() } ?: session.uid
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "VLESS: $sAddress:$sPort",
-                    color = NexusCyan,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = "SNI: ${if (sSni.length > 20) sSni.take(17) + "..." else sSni}",
-                    color = NexusTextSecondary,
-                    fontSize = 11.sp,
+                    text = "UID VLESS: ${FormatUtils.formatMaskedUid(sUuid)}",
+                    color = NexusGreen,
+                    fontSize = 10.sp,
                     fontFamily = FontFamily.Monospace
                 )
             }

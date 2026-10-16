@@ -285,13 +285,22 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
 
     fun saveServerConfig(newConfig: com.example.data.model.DynamicServerConfig) {
         repository.saveDynamicServerConfig(newConfig)
+        val currentSession = _uiState.value.userSession
+        val updatedSession = if (currentSession != null && !newConfig.uuid.isNullOrBlank()) {
+            val s = currentSession.copy(uid = newConfig.uuid)
+            repository.saveUserSession(s)
+            s
+        } else {
+            currentSession
+        }
         _uiState.update {
             it.copy(
                 serverConfig = newConfig,
+                userSession = updatedSession,
                 feedbackMessage = "Configuration serveur VLESS enregistrée."
             )
         }
-        NexusVpnService.log(LogLevel.INFO, "[CONFIG] Serveur VLESS mis à jour : ${newConfig.serverAddress}:${newConfig.serverPort}")
+        NexusVpnService.log(LogLevel.INFO, "[CONFIG] Serveur VLESS mis à jour : ${newConfig.serverAddress}:${newConfig.serverPort} (UID: ${newConfig.uuid ?: "---"})")
     }
 
     fun updateServerUrl(url: String) {
@@ -313,6 +322,7 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
     fun bypassToDashboard() {
         val currentSession = repository.getUserSession()
         val devInfo = repository.getDeviceInfo()
+        val generatedUid = repository.getOrCreateDeterministicUuid()
         val session = currentSession ?: com.example.data.model.UserSession(
             fullName = "Membre Nexus VLESS",
             countryName = "Afrique",
@@ -320,7 +330,7 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
             countryFlag = "🇨🇲",
             channel = com.example.data.model.CommunicationChannel.WHATSAPP,
             contactDetail = "",
-            uid = "nx_uid_${devInfo.deviceId.takeLast(6).lowercase()}",
+            uid = generatedUid,
             token = "direct_access_token",
             approvalStatus = ApprovalStatus.APPROVED,
             quotaTotalBytes = 10L * 1024 * 1024 * 1024,
@@ -340,6 +350,35 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         NexusVpnService.log(LogLevel.SUCCESS, "[MODE] Accès direct au tableau de bord VPN activé.")
+    }
+
+    fun updateVlessUuid(newUuid: String) {
+        val trimmed = newUuid.trim()
+        if (trimmed.isNotBlank()) {
+            val current = _uiState.value.serverConfig ?: com.example.data.model.DynamicServerConfig()
+            val updated = current.copy(uuid = trimmed)
+            repository.saveDynamicServerConfig(updated)
+            val session = _uiState.value.userSession
+            if (session != null) {
+                val updatedSession = session.copy(uid = trimmed)
+                repository.saveUserSession(updatedSession)
+                _uiState.update {
+                    it.copy(
+                        userSession = updatedSession,
+                        serverConfig = updated,
+                        feedbackMessage = "UID VLESS mis à jour avec succès !"
+                    )
+                }
+            } else {
+                _uiState.update {
+                    it.copy(
+                        serverConfig = updated,
+                        feedbackMessage = "UID VLESS mis à jour avec succès !"
+                    )
+                }
+            }
+            NexusVpnService.log(LogLevel.SUCCESS, "[CONFIG] UID VLESS mis à jour : ${trimmed.take(8)}...")
+        }
     }
 
     fun dismissFeedback() {

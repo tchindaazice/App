@@ -169,7 +169,7 @@ class NexusVpnService : VpnService() {
         serviceScope.launch {
             try {
                 val session = repository.getUserSession()
-                val currentUid = session?.uid ?: ""
+                val currentUid = session?.uid?.takeIf { it.isNotBlank() } ?: repository.getOrCreateDeterministicUuid()
                 log(LogLevel.SUCCESS, "[AUTH] Compte membre actif : ${FormatUtils.formatMaskedUid(currentUid)}")
 
                 // 1. Handshake avec le Web Panel Nexus
@@ -187,7 +187,7 @@ class NexusVpnService : VpnService() {
                 log(LogLevel.SUCCESS, "[WEB PANEL] ${connectRes.message}")
 
                 val dynamicConfig = repository.getDynamicServerConfig()
-                log(LogLevel.INFO, "[CONFIG] Hôte VLESS : ${dynamicConfig?.serverAddress ?: "nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio"}:${dynamicConfig?.serverPort ?: 443}")
+                log(LogLevel.INFO, "[CONFIG] Hôte VLESS : ${dynamicConfig?.serverAddress ?: "192.179.18.100"}:${dynamicConfig?.serverPort ?: 443}")
 
                 val prefs = repository.getPreferences()
                 val builder = Builder()
@@ -208,9 +208,13 @@ class NexusVpnService : VpnService() {
                     _vpnStatus.value = VpnStatus.CONNECTED
                     log(LogLevel.SUCCESS, "[CONNECTED] Interface Tun0 établie. Initialisation du noyau VLESS.")
 
-                    // Initialize VLESS Engine with raw FileDescriptor
-                    val serverConfig = dynamicConfig ?: com.example.data.model.DynamicServerConfig()
-                    vlessEngine = XrayVlessEngine(serverConfig, vpnInterface!!.fileDescriptor)
+                    // Initialiser le moteur VLESS avec l'UID du compte membre garanti
+                    val baseConfig = dynamicConfig ?: com.example.data.model.DynamicServerConfig()
+                    val serverConfig = baseConfig.copy(
+                        uuid = baseConfig.uuid?.takeIf { it.isNotBlank() } ?: currentUid
+                    )
+                    log(LogLevel.INFO, "[XRAY] Noyau VLESS synchronisé avec l'UID : ${serverConfig.uuid}")
+                    vlessEngine = XrayVlessEngine(serverConfig, vpnInterface!!.fileDescriptor, this@NexusVpnService)
                     vlessEngine?.startEngine()
 
                     updateNotification("Connecté", "Trafic protégé VLESS+WS")

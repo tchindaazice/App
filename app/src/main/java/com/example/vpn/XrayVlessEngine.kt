@@ -223,7 +223,6 @@ class XrayVlessEngine(
 
         val requestBuilder = Request.Builder()
             .url(wsUrl)
-            .addHeader("Sec-WebSocket-Protocol", "vless")
             .addHeader("Host", hostHeader)
             .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android) NexusTunnel/1.0")
 
@@ -232,6 +231,7 @@ class XrayVlessEngine(
         }
 
         config.uuid?.takeIf { it.isNotEmpty() }?.let {
+            requestBuilder.addHeader("X-User-ID", it)
             requestBuilder.addHeader("Authorization", "Bearer $it")
         }
 
@@ -522,15 +522,32 @@ class XrayVlessEngine(
     }
 
     private fun parseUuidToBytes(uuidStr: String): ByteArray {
+        val clean = uuidStr.replace("\"", "").trim()
         return try {
-            val cleanUuid = uuidStr.replace("\"", "").trim()
-            val uuid = UUID.fromString(cleanUuid)
-            val bb = ByteBuffer.allocate(16)
-            bb.putLong(uuid.mostSignificantBits)
-            bb.putLong(uuid.leastSignificantBits)
-            bb.array()
+            val hexOnly = clean.replace("-", "").trim()
+            if (hexOnly.length == 32 && hexOnly.all { it in "0123456789abcdefABCDEF" }) {
+                val bb = ByteBuffer.allocate(16)
+                for (i in 0 until 32 step 2) {
+                    bb.put(hexOnly.substring(i, i + 2).toInt(16).toByte())
+                }
+                bb.array()
+            } else {
+                val uuid = UUID.fromString(clean)
+                val bb = ByteBuffer.allocate(16)
+                bb.putLong(uuid.mostSignificantBits)
+                bb.putLong(uuid.leastSignificantBits)
+                bb.array()
+            }
         } catch (_: Exception) {
-            ByteArray(16) { 0x42 }
+            try {
+                val uuid = UUID.nameUUIDFromBytes(clean.toByteArray(Charsets.UTF_8))
+                val bb = ByteBuffer.allocate(16)
+                bb.putLong(uuid.mostSignificantBits)
+                bb.putLong(uuid.leastSignificantBits)
+                bb.array()
+            } catch (_: Exception) {
+                ByteArray(16) { 0x42 }
+            }
         }
     }
 
