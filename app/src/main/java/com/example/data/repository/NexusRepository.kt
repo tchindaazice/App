@@ -43,7 +43,19 @@ class NexusRepository(private val context: Context) {
         .addLast(KotlinJsonAdapterFactory())
         .build()
 
-    private var baseUrl: String = prefs.getString("cfg_server_url", "https://nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio/") ?: "https://nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio/"
+    companion object {
+        const val DEFAULT_WEB_PANEL_URL = "https://ais-dev-kbhcngbmjxsdibapd4euvg-354186393206.us-west1.run.app/"
+    }
+
+    private var baseUrl: String = run {
+        val stored = prefs.getString("cfg_server_url", null)
+        if (stored.isNullOrBlank() || stored.contains("nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio")) {
+            prefs.edit().putString("cfg_server_url", DEFAULT_WEB_PANEL_URL).apply()
+            DEFAULT_WEB_PANEL_URL
+        } else {
+            if (stored.endsWith("/")) stored else "$stored/"
+        }
+    }
     private var apiService: NexusApiService = createApiService(baseUrl)
 
     private fun createApiService(url: String): NexusApiService {
@@ -52,9 +64,9 @@ class NexusRepository(private val context: Context) {
             level = HttpLoggingInterceptor.Level.NONE
         }
         val client = OkHttpClient.Builder()
-            .connectTimeout(4, TimeUnit.SECONDS)
-            .readTimeout(4, TimeUnit.SECONDS)
-            .writeTimeout(4, TimeUnit.SECONDS)
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .writeTimeout(5, TimeUnit.SECONDS)
             .addInterceptor(logging)
             .build()
 
@@ -67,9 +79,11 @@ class NexusRepository(private val context: Context) {
     }
 
     fun updateServerUrl(newUrl: String) {
-        baseUrl = newUrl
-        prefs.edit().putString("cfg_server_url", newUrl).apply()
-        apiService = createApiService(newUrl)
+        val trimmed = newUrl.trim()
+        val sanitized = if (trimmed.endsWith("/")) trimmed else "$trimmed/"
+        baseUrl = sanitized
+        prefs.edit().putString("cfg_server_url", sanitized).apply()
+        apiService = createApiService(sanitized)
     }
 
     fun getServerUrl(): String = baseUrl

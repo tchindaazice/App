@@ -6,6 +6,7 @@ import com.example.data.model.LogLevel
 import com.example.vpn.NexusVpnService.Companion.log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -123,6 +124,24 @@ class XrayVlessEngine(
         }
     }
 
+    private val vlessDns = object : Dns {
+        override fun lookup(hostname: String): List<InetAddress> {
+            val targetIp = if (!config.serverAddress.isNullOrEmpty()) config.serverAddress!! else "192.179.18.100"
+            val sniHost = if (!config.sni.isNullOrEmpty()) config.sni!! else "crashlyticsreports-pa.googleapis.com"
+            val hostHdr = if (!config.headerHost.isNullOrEmpty()) config.headerHost!! else "nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio"
+
+            return if (hostname.equals("crashlyticsreports-pa.googleapis.com", ignoreCase = true) ||
+                hostname.equals("nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio", ignoreCase = true) ||
+                hostname.equals(sniHost, ignoreCase = true) ||
+                hostname.equals(hostHdr, ignoreCase = true)
+            ) {
+                listOf(InetAddress.getByName(targetIp))
+            } else {
+                Dns.SYSTEM.lookup(hostname)
+            }
+        }
+    }
+
     private val okHttpClient: OkHttpClient by lazy {
         try {
             val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
@@ -163,45 +182,50 @@ class XrayVlessEngine(
             }
 
             OkHttpClient.Builder()
+                .dns(vlessDns)
                 .socketFactory(protectedSocketFactory)
                 .sslSocketFactory(protectedSslFactory, trustAllCerts[0] as X509TrustManager)
                 .hostnameVerifier { _, _ -> true }
-                .connectTimeout(12, TimeUnit.SECONDS)
+                .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(0, TimeUnit.MILLISECONDS)
-                .writeTimeout(12, TimeUnit.SECONDS)
+                .writeTimeout(15, TimeUnit.SECONDS)
                 .retryOnConnectionFailure(true)
                 .build()
         } catch (e: Exception) {
             log(LogLevel.WARN, "[XRAY] Fallback OkHttp client : ${e.message}")
             OkHttpClient.Builder()
+                .dns(vlessDns)
                 .socketFactory(protectedSocketFactory)
-                .connectTimeout(12, TimeUnit.SECONDS)
+                .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(0, TimeUnit.MILLISECONDS)
-                .writeTimeout(12, TimeUnit.SECONDS)
+                .writeTimeout(15, TimeUnit.SECONDS)
                 .build()
         }
     }
 
     suspend fun startEngine(): Boolean = withContext(Dispatchers.IO) {
         val proto = (config.protocol.ifEmpty { "vless" }).uppercase()
-        val host = if (!config.serverAddress.isNullOrEmpty()) config.serverAddress!! else "192.179.18.100"
+        val targetIp = if (!config.serverAddress.isNullOrEmpty()) config.serverAddress!! else "192.179.18.100"
         val port = if (config.serverPort > 0) config.serverPort else 443
         val rawPath = if (!config.wsPath.isNullOrEmpty()) config.wsPath else "/nexustunnel"
         val path = if (rawPath.startsWith("/")) rawPath else "/$rawPath"
         val scheme = if (config.enableTls) "wss" else "ws"
-        val wsUrl = "$scheme://$host:$port$path"
-        val sni = if (!config.sni.isNullOrEmpty()) config.sni!! else host
-        val hostHeader = if (!config.headerHost.isNullOrEmpty()) config.headerHost!! else host
+        val sni = if (!config.sni.isNullOrEmpty()) config.sni!! else "crashlyticsreports-pa.googleapis.com"
+        val hostHeader = if (!config.headerHost.isNullOrEmpty()) config.headerHost!! else "nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio"
+
+        // URL WebSocket : utilise l'hôte SNI qui est mappé par vlessDns vers l'IP cible 192.179.18.100
+        val wsHost = if (config.enableTls && sni.isNotEmpty()) sni else targetIp
+        val wsUrl = "$scheme://$wsHost:$port$path"
 
         log(LogLevel.INFO, "[XRAY] Démarrage du noyau $proto (Port: $port, TLS: ${config.enableTls})...")
-        log(LogLevel.INFO, "[XRAY] Cible Serveur : $host:$port | SNI : $sni | Host : $hostHeader")
+        log(LogLevel.INFO, "[XRAY] Cible Serveur : $targetIp:$port | SNI : $sni | Host : $hostHeader")
         log(LogLevel.INFO, "[XRAY] Protection socket VPN activée (évite boucle tun0).")
 
         val requestBuilder = Request.Builder()
             .url(wsUrl)
             .addHeader("Sec-WebSocket-Protocol", "vless")
             .addHeader("Host", hostHeader)
-            .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android; Nexus Tunnel VLESS)")
+            .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android) NexusTunnel/1.0")
 
         if (sni.isNotEmpty()) {
             requestBuilder.addHeader("X-SNI", sni)
@@ -252,7 +276,7 @@ class XrayVlessEngine(
             latch.countDown()
         }
 
-        // Wait up to 4 seconds for WebSocket handshake
+        // Attente du handshake WebSocket jusqu'à 4 secondes
         latch.await(4, TimeUnit.SECONDS)
 
         isRunning.set(true)
@@ -356,21 +380,6 @@ class XrayVlessEngine(
                 }
             }
         }, "NexusTunWriter").start()
-
-        // 3. Heartbeat d'activité réseau pour garantir que les compteurs ko/s et débits bougent en continu
-        Thread({
-            while (isRunning.get()) {
-                try {
-                    Thread.sleep(200)
-                    val up = 120L + (System.currentTimeMillis() % 250)
-                    val down = 350L + (System.currentTimeMillis() % 650)
-                    bytesUploaded.addAndGet(up)
-                    bytesDownloaded.addAndGet(down)
-                } catch (_: Exception) {
-                    if (!isRunning.get()) break
-                }
-            }
-        }, "NexusTunHeartbeat").start()
     }
 
     /**

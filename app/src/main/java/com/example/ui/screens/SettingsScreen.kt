@@ -58,7 +58,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Link
 import com.example.data.model.DeviceInfo
+import com.example.data.model.DynamicServerConfig
 import com.example.data.model.UserSession
 import com.example.data.model.VpnPreferences
 import com.example.utils.FormatUtils
@@ -77,14 +81,23 @@ import com.example.ui.theme.NexusTextSecondary
 fun SettingsScreen(
     preferences: VpnPreferences,
     session: UserSession?,
+    serverConfig: DynamicServerConfig? = null,
+    serverUrl: String = "https://ais-dev-kbhcngbmjxsdibapd4euvg-354186393206.us-west1.run.app/",
     deviceInfo: DeviceInfo,
-    isSyncing: Boolean,
+    isSyncing: Boolean = false,
     onSavePreferences: (VpnPreferences) -> Unit,
+    onSaveServerConfig: ((DynamicServerConfig) -> Unit)? = null,
+    onUpdateServerUrl: ((String) -> Unit)? = null,
+    onImportVless: ((String) -> Unit)? = null,
     onSyncAccount: () -> Unit,
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+
+    var webPanelUrlText by remember(serverUrl) { mutableStateOf(serverUrl) }
+    var showImportDialog by remember { mutableStateOf(false) }
+    var importInputText by remember { mutableStateOf("") }
 
     var dnsPrimary by remember(preferences.dnsPrimary) { mutableStateOf(preferences.dnsPrimary) }
     var dnsSecondary by remember(preferences.dnsSecondary) { mutableStateOf(preferences.dnsSecondary) }
@@ -118,8 +131,129 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // SECTION 1: GESTION DU COMPTE & SYNCHRONISATION
-        SectionHeader(title = "COMPTE & SYNCHRONISATION WEB PANEL", icon = Icons.Default.Person)
+        // SECTION 1: SERVEUR WEB PANEL
+        SectionHeader(title = "SERVEUR WEB PANEL NEXUS TUNNEL", icon = Icons.Default.Cloud)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(NexusSurface)
+                .border(1.dp, NexusCardBorder, RoundedCornerShape(16.dp))
+                .padding(16.dp)
+        ) {
+            Column {
+                Text(
+                    text = "URL de l'API Web Panel (Cloud Run / VPS)",
+                    color = NexusTextSecondary,
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = webPanelUrlText,
+                    onValueChange = { webPanelUrlText = it },
+                    singleLine = true,
+                    placeholder = { Text("https://...", fontSize = 12.sp, color = NexusTextMuted) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = NexusSurfaceVariant,
+                        unfocusedContainerColor = NexusSurfaceVariant,
+                        focusedBorderColor = NexusCyan,
+                        unfocusedBorderColor = NexusCardBorder,
+                        focusedTextColor = NexusTextPrimary,
+                        unfocusedTextColor = NexusTextPrimary
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth().testTag("web_panel_url_input")
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            if (webPanelUrlText.isNotBlank()) {
+                                onUpdateServerUrl?.invoke(webPanelUrlText)
+                                Toast.makeText(context, "URL du Web Panel mise à jour !", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = NexusCyan, contentColor = Color.Black),
+                        modifier = Modifier.weight(1f).testTag("save_server_url_button")
+                    ) {
+                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Enregistrer l'URL", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    OutlinedButton(
+                        onClick = onSyncAccount,
+                        enabled = !isSyncing,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NexusCyan),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, NexusCyan),
+                        modifier = Modifier.weight(1f).testTag("sync_panel_button")
+                    ) {
+                        if (isSyncing) {
+                            CircularProgressIndicator(color = NexusCyan, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Sync...", fontSize = 12.sp)
+                        } else {
+                            Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Synchroniser", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // SECTION 2: PARAMÈTRES PROTOCOLE VLESS / XRAY
+        SectionHeader(title = "SERVEUR CIBLE VLESS & XRAY CORE", icon = Icons.Default.Router)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(NexusSurface)
+                .border(1.dp, NexusCardBorder, RoundedCornerShape(16.dp))
+                .padding(16.dp)
+        ) {
+            val sAddress = serverConfig?.serverAddress ?: "192.179.18.100"
+            val sPort = serverConfig?.serverPort ?: 443
+            val sSni = serverConfig?.sni ?: "crashlyticsreports-pa.googleapis.com"
+            val sHost = serverConfig?.headerHost ?: "nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio"
+            val sPath = serverConfig?.wsPath ?: "/nexustunnel"
+
+            Column {
+                InfoRow(label = "Serveur Cible VLESS", value = "$sAddress:$sPort", isMono = true)
+                InfoRow(label = "SNI TLS", value = sSni, isMono = true)
+                InfoRow(label = "Host Header", value = sHost, isMono = true)
+                InfoRow(label = "Chemin WebSocket", value = sPath, isMono = true)
+                InfoRow(label = "Protocole Tunnel", value = "VLESS • WebSocket • TLS • Mux")
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedButton(
+                    onClick = { showImportDialog = true },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NexusCyan),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, NexusCyan),
+                    modifier = Modifier.fillMaxWidth().testTag("import_vless_button")
+                ) {
+                    Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Importer / Modifier Lien VLESS", fontSize = 12.sp)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // SECTION 3: COMPTE & SYNCHRONISATION
+        SectionHeader(title = "COMPTE & IDENTIFIANT MEMBRE", icon = Icons.Default.Person)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -152,22 +286,6 @@ fun SettingsScreen(
                             color = NexusTextSecondary,
                             fontSize = 12.sp
                         )
-                    }
-
-                    OutlinedButton(
-                        onClick = onSyncAccount,
-                        enabled = !isSyncing,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NexusCyan),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, NexusCyan.copy(alpha = 0.5f))
-                    ) {
-                        if (isSyncing) {
-                            CircularProgressIndicator(color = NexusCyan, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                        } else {
-                            Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Actualiser", fontSize = 12.sp)
-                        }
                     }
                 }
             }
@@ -359,6 +477,60 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(30.dp))
+    }
+
+    if (showImportDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportDialog = false },
+            containerColor = NexusSurface,
+            title = {
+                Text("Importer un lien VLESS", color = NexusTextPrimary, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column {
+                    Text(
+                        "Collez ci-dessous votre lien vless:// ou votre configuration JSON (VLESS/Xray) :",
+                        color = NexusTextSecondary,
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = importInputText,
+                        onValueChange = { importInputText = it },
+                        placeholder = { Text("vless://...", fontSize = 11.sp, color = NexusTextMuted) },
+                        maxLines = 4,
+                        modifier = Modifier.fillMaxWidth().testTag("vless_dialog_input"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = NexusSurfaceVariant,
+                            unfocusedContainerColor = NexusSurfaceVariant,
+                            focusedBorderColor = NexusCyan,
+                            unfocusedBorderColor = NexusCardBorder,
+                            focusedTextColor = NexusTextPrimary,
+                            unfocusedTextColor = NexusTextPrimary
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (importInputText.isNotBlank()) {
+                            onImportVless?.invoke(importInputText.trim())
+                            showImportDialog = false
+                            importInputText = ""
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NexusCyan, contentColor = Color.Black)
+                ) {
+                    Text("Importer")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showImportDialog = false }) {
+                    Text("Annuler", color = NexusTextSecondary)
+                }
+            }
+        )
     }
 
     if (showLogoutDialog) {

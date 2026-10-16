@@ -41,6 +41,9 @@ class NexusVpnService : VpnService() {
         const val ACTION_CONNECT = "com.example.nexus.ACTION_CONNECT"
         const val ACTION_DISCONNECT = "com.example.nexus.ACTION_DISCONNECT"
 
+        var instance: NexusVpnService? = null
+            private set
+
         private val _vpnStatus = MutableStateFlow(VpnStatus.DISCONNECTED)
         val vpnStatus = _vpnStatus.asStateFlow()
 
@@ -85,13 +88,15 @@ class NexusVpnService : VpnService() {
     private var vpnInterface: ParcelFileDescriptor? = null
     private var vlessEngine: XrayVlessEngine? = null
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
-    private var heartbeatJob: Job? = null
+    private var timerJob: Job? = null
+    private var quotaSyncJob: Job? = null
     private lateinit var repository: NexusRepository
     private val notificationChannelId = "nexus_vpn_active_status"
     private val notificationId = 1001
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         repository = NexusRepository(this)
         createNotificationChannel()
     }
@@ -209,7 +214,7 @@ class NexusVpnService : VpnService() {
                     vlessEngine?.startEngine()
 
                     updateNotification("Connecté", "Trafic protégé VLESS+WS")
-                    startRealTrafficHeartbeat(currentUid)
+                    startRealTrafficMeasurementAndSync(currentUid)
                 } else {
                     log(LogLevel.ERROR, "[ERROR] Échec de création de l'interface réseau tun0.")
                     _vpnStatus.value = VpnStatus.ERROR
@@ -224,25 +229,30 @@ class NexusVpnService : VpnService() {
     }
 
     /**
-     * Heartbeat & Real Traffic Measurement Loop
-     * Updates notification with live Upload/Download speeds, time, and total traffic
+     * Mesure en temps réel du trafic et synchronisation périodique avec le Web Panel :
+     * 1. Coroutine Timer 1s : incrémente la durée de façon fluide chaque seconde et met à jour les débits et la notification sans saccade.
+     * 2. Coroutine Quota 5s : synchronise les octets consommés auprès de l'API Web Panel sans bloquer le timer.
      */
-    private fun startRealTrafficHeartbeat(uid: String) {
-        heartbeatJob?.cancel()
-        heartbeatJob = serviceScope.launch {
-            val myUid = Process.myUid()
-            var lastTx = TrafficStats.getUidTxBytes(myUid)
-            var lastRx = TrafficStats.getUidRxBytes(myUid)
-            if (lastTx < 0) lastTx = TrafficStats.getTotalTxBytes()
-            if (lastRx < 0) lastRx = TrafficStats.getTotalRxBytes()
+    private fun startRealTrafficMeasurementAndSync(uid: String) {
+        timerJob?.cancel()
+        quotaSyncJob?.cancel()
 
-            var totalSessionTx = 0L
-            var totalSessionRx = 0L
-            var durationSeconds = 0L
+        val myUid = Process.myUid()
+        var lastTx = TrafficStats.getUidTxBytes(myUid).let { if (it < 0) TrafficStats.getTotalTxBytes() else it }
+        var lastRx = TrafficStats.getUidRxBytes(myUid).let { if (it < 0) TrafficStats.getTotalRxBytes() else it }
 
+        var totalSessionTx = 0L
+        var totalSessionRx = 0L
+        var durationSeconds = 0L
+
+        val pendingQuotaTx = java.util.concurrent.atomic.AtomicLong(0L)
+        val pendingQuotaRx = java.util.concurrent.atomic.AtomicLong(0L)
+
+        // 1. Ticker 1 seconde dédié pour l'affichage de l'interface et de la notification
+        timerJob = serviceScope.launch {
             while (isActive && _vpnStatus.value == VpnStatus.CONNECTED) {
-                delay(2000)
-                durationSeconds += 2
+                delay(1000)
+                durationSeconds++
 
                 var currentTx = TrafficStats.getUidTxBytes(myUid)
                 var currentRx = TrafficStats.getUidRxBytes(myUid)
@@ -252,16 +262,10 @@ class NexusVpnService : VpnService() {
                 var deltaTx = (currentTx - lastTx).coerceAtLeast(0L)
                 var deltaRx = (currentRx - lastRx).coerceAtLeast(0L)
 
-                // Add engine bytes if registered
+                // Ajouter les octets directement relayés par le moteur VLESS
                 vlessEngine?.let { engine ->
                     deltaTx += engine.bytesUploaded.getAndSet(0L)
                     deltaRx += engine.bytesDownloaded.getAndSet(0L)
-                }
-
-                // Minimal ping-like frame byte accounting when device is idling
-                if (deltaTx == 0L && deltaRx == 0L) {
-                    deltaTx = 1024L
-                    deltaRx = 2048L
                 }
 
                 lastTx = currentTx
@@ -270,9 +274,12 @@ class NexusVpnService : VpnService() {
                 totalSessionTx += deltaTx
                 totalSessionRx += deltaRx
 
-                val speedUpBps = deltaTx / 2
-                val speedDownBps = deltaRx / 2
-                val ping = (18L + (deltaTx % 30)).coerceIn(15L, 60L)
+                pendingQuotaTx.addAndGet(deltaTx)
+                pendingQuotaRx.addAndGet(deltaRx)
+
+                val speedUpBps = deltaTx
+                val speedDownBps = deltaRx
+                val ping = (22L + (deltaTx % 20)).coerceIn(18L, 50L)
 
                 _stats.value = ConnectionStats(
                     uploadSpeedBps = speedUpBps,
@@ -283,19 +290,7 @@ class NexusVpnService : VpnService() {
                     connectedDurationSeconds = durationSeconds
                 )
 
-                // Report traffic to Web Panel & check quota limits
-                val trafficResult = repository.reportTrafficAndCheckQuota(deltaUp = deltaTx, deltaDown = deltaRx)
-                trafficResult.onSuccess { report ->
-                    if (report.shouldDisconnect) {
-                        val reason = report.reason ?: "Quota épuisé"
-                        log(LogLevel.WARN, "[SERVEUR] Déconnexion ordonnée par le Web Panel : $reason")
-                        _disconnectEvent.emit(reason)
-                        disconnectTunnel(reason)
-                        return@launch
-                    }
-                }
-
-                // Update Foreground Notification with live incoming & outgoing speeds + elapsed time
+                // Mise à jour continue de la notification système chaque seconde
                 val downStr = FormatUtils.formatSpeed(speedDownBps)
                 val upStr = FormatUtils.formatSpeed(speedUpBps)
                 val timeStr = FormatUtils.formatDuration(durationSeconds)
@@ -305,12 +300,37 @@ class NexusVpnService : VpnService() {
                 updateNotification(notifMain, notifSub)
             }
         }
+
+        // 2. Tâche de synchronisation du quota toutes les 5 secondes auprès du Web Panel
+        quotaSyncJob = serviceScope.launch {
+            while (isActive && _vpnStatus.value == VpnStatus.CONNECTED) {
+                delay(5000)
+
+                val deltaUp = pendingQuotaTx.getAndSet(0L)
+                val deltaDown = pendingQuotaRx.getAndSet(0L)
+
+                val trafficResult = repository.reportTrafficAndCheckQuota(deltaUp = deltaUp, deltaDown = deltaDown)
+                trafficResult.onSuccess { report ->
+                    if (report.shouldDisconnect) {
+                        val reason = report.reason ?: "Quota de données épuisé ou abonnement expiré"
+                        log(LogLevel.WARN, "[SERVEUR] Déconnexion ordonnée par le Web Panel : $reason")
+                        _disconnectEvent.emit(reason)
+                        disconnectTunnel(reason)
+                        return@launch
+                    }
+                }
+            }
+        }
     }
 
     private fun disconnectTunnel(reason: String) {
         _vpnStatus.value = VpnStatus.DISCONNECTING
         log(LogLevel.WARN, "[DISCONNECT] $reason")
-        heartbeatJob?.cancel()
+        timerJob?.cancel()
+        quotaSyncJob?.cancel()
+        timerJob = null
+        quotaSyncJob = null
+
         vlessEngine?.stopEngine()
         vlessEngine = null
 
@@ -335,6 +355,9 @@ class NexusVpnService : VpnService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (instance == this) {
+            instance = null
+        }
         disconnectTunnel("Service VLESS arrêté")
     }
 }

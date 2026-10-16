@@ -1,7 +1,11 @@
 package com.example
 
+import android.Manifest
 import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.VpnService
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -10,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -32,6 +37,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -82,6 +88,23 @@ class MainActivity : ComponentActivity() {
                         viewModel.toggleVpnConnection(context)
                     } else {
                         Toast.makeText(context, "Autorisation VPN requise pour sécuriser la connexion.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+                // Demande de permission pour les notifications (Android 13+ / API 33+)
+                val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestPermission()
+                ) { isGranted ->
+                    if (!isGranted) {
+                        Toast.makeText(context, "Activez les notifications pour afficher le statut et les débits du VPN.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+                LaunchedEffect(Unit) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
                     }
                 }
 
@@ -192,9 +215,11 @@ class MainActivity : ComponentActivity() {
                                         session = uiState.userSession!!,
                                         vpnStatus = uiState.vpnStatus,
                                         stats = uiState.stats,
+                                        serverConfig = uiState.serverConfig,
                                         isSyncing = uiState.isSyncingAccount,
                                         onToggleVpn = onToggleVpnWithPermission,
-                                        onSyncAccount = { viewModel.syncAccount() }
+                                        onSyncAccount = { viewModel.syncAccount() },
+                                        onImportVless = { viewModel.importVlessConfig(it) }
                                     )
                                     MainTab.LOGS -> LogsScreen(
                                         logs = uiState.logs,
@@ -203,9 +228,14 @@ class MainActivity : ComponentActivity() {
                                     MainTab.SETTINGS -> SettingsScreen(
                                         preferences = uiState.preferences,
                                         session = uiState.userSession,
+                                        serverConfig = uiState.serverConfig,
+                                        serverUrl = uiState.serverUrl,
                                         deviceInfo = uiState.deviceInfo,
                                         isSyncing = uiState.isSyncingAccount,
                                         onSavePreferences = { viewModel.updatePreferences(it) },
+                                        onSaveServerConfig = { viewModel.saveServerConfig(it) },
+                                        onUpdateServerUrl = { viewModel.updateServerUrl(it) },
+                                        onImportVless = { viewModel.importVlessConfig(it) },
                                         onSyncAccount = { viewModel.syncAccount() },
                                         onLogout = { viewModel.logout() }
                                     )

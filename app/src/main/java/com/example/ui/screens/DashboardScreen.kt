@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.ConnectionStats
+import com.example.data.model.DynamicServerConfig
 import com.example.data.model.UserSession
 import com.example.data.model.VpnStatus
 import com.example.ui.components.MetricTile
@@ -71,9 +72,11 @@ fun DashboardScreen(
     session: UserSession,
     vpnStatus: VpnStatus,
     stats: ConnectionStats,
-    isSyncing: Boolean,
+    serverConfig: DynamicServerConfig? = null,
+    isSyncing: Boolean = false,
     onToggleVpn: () -> Unit,
-    onSyncAccount: () -> Unit
+    onSyncAccount: () -> Unit,
+    onImportVless: ((String) -> Unit)? = null
 ) {
     val scrollState = rememberScrollState()
     var showMenu by remember { mutableStateOf(false) }
@@ -188,7 +191,42 @@ fun DashboardScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // SERVER TARGET & SNI INFO CHIP
+        val sAddress = serverConfig?.serverAddress ?: "192.179.18.100"
+        val sPort = serverConfig?.serverPort ?: 443
+        val sSni = serverConfig?.sni ?: "crashlyticsreports-pa.googleapis.com"
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(NexusSurfaceVariant.copy(alpha = 0.6f))
+                .border(1.dp, NexusCardBorder.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "VLESS: $sAddress:$sPort",
+                    color = NexusCyan,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "SNI: ${if (sSni.length > 20) sSni.take(17) + "..." else sSni}",
+                    color = NexusTextSecondary,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
 
         // REAL-TIME DATA QUOTA GAUGE
         QuotaGauge(
@@ -209,11 +247,11 @@ fun DashboardScreen(
 
         // LIVE REAL METRICS (Download, Upload, Ping, Duration)
         val downloadSpeedFormatted = if (vpnStatus == VpnStatus.CONNECTED) {
-            String.format(Locale.US, "%.1f Mo/s", stats.downloadSpeedBps / (1024.0 * 1024.0))
+            FormatUtils.formatSpeed(stats.downloadSpeedBps)
         } else "0.0 Ko/s"
 
         val uploadSpeedFormatted = if (vpnStatus == VpnStatus.CONNECTED) {
-            String.format(Locale.US, "%.1f Mo/s", stats.uploadSpeedBps / (1024.0 * 1024.0))
+            FormatUtils.formatSpeed(stats.uploadSpeedBps)
         } else "0.0 Ko/s"
 
         val pingFormatted = if (vpnStatus == VpnStatus.CONNECTED) "${stats.pingMs} ms" else "-- ms"

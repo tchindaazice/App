@@ -37,6 +37,7 @@ data class NexusUiState(
     val logs: List<LogEntry> = emptyList(),
     val preferences: VpnPreferences = VpnPreferences(),
     val serverConfig: com.example.data.model.DynamicServerConfig? = null,
+    val serverUrl: String = "https://ais-dev-kbhcngbmjxsdibapd4euvg-354186393206.us-west1.run.app/",
     val deviceInfo: DeviceInfo,
     val isSubmitting: Boolean = false,
     val isCheckingStatus: Boolean = false,
@@ -57,6 +58,7 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
             approvalStatus = repository.getApprovalStatus(),
             preferences = repository.getPreferences(),
             serverConfig = repository.getDynamicServerConfig(),
+            serverUrl = repository.getServerUrl(),
             deviceInfo = repository.getDeviceInfo()
         )
     )
@@ -290,6 +292,22 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         NexusVpnService.log(LogLevel.INFO, "[CONFIG] Serveur VLESS mis à jour : ${newConfig.serverAddress}:${newConfig.serverPort}")
+    }
+
+    fun updateServerUrl(url: String) {
+        val trimmed = url.trim()
+        if (trimmed.isBlank() || (!trimmed.startsWith("http://") && !trimmed.startsWith("https://"))) {
+            _uiState.update { it.copy(feedbackMessage = "URL invalide (doit commencer par http:// ou https://)") }
+            return
+        }
+        repository.updateServerUrl(trimmed)
+        _uiState.update {
+            it.copy(
+                serverUrl = repository.getServerUrl(),
+                feedbackMessage = "URL du serveur Web Panel enregistrée avec succès."
+            )
+        }
+        NexusVpnService.log(LogLevel.SUCCESS, "[CONFIG] URL Web Panel mise à jour : ${repository.getServerUrl()}")
     }
 
     fun bypassToDashboard() {
