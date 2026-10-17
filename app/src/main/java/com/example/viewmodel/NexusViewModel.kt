@@ -37,7 +37,7 @@ data class NexusUiState(
     val logs: List<LogEntry> = emptyList(),
     val preferences: VpnPreferences = VpnPreferences(),
     val serverConfig: com.example.data.model.DynamicServerConfig? = null,
-    val serverUrl: String = "https://ais-dev-kbhcngbmjxsdibapd4euvg-354186393206.us-west1.run.app/",
+    val serverUrl: String = "https://nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio/",
     val deviceInfo: DeviceInfo,
     val isSubmitting: Boolean = false,
     val isCheckingStatus: Boolean = false,

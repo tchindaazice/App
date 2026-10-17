@@ -198,6 +198,10 @@ class NexusVpnService : VpnService() {
                     .setSession("Nexus VLESS Tunnel")
                     .setMtu(prefs.mtu)
 
+                try {
+                    builder.addDisallowedApplication(packageName)
+                } catch (_: Exception) {}
+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     builder.setMetered(false)
                 }
@@ -206,7 +210,8 @@ class NexusVpnService : VpnService() {
 
                 if (vpnInterface != null) {
                     _vpnStatus.value = VpnStatus.CONNECTED
-                    log(LogLevel.SUCCESS, "[CONNECTED] Interface Tun0 établie. Initialisation du noyau VLESS.")
+                    val fdInt = vpnInterface?.fd ?: -1
+                    log(LogLevel.SUCCESS, "[CONNECTED] Interface Tun0 établie (fd=$fdInt). Initialisation du noyau officiel Xray.")
 
                     // Initialiser le moteur VLESS avec l'UID du compte membre garanti
                     val baseConfig = dynamicConfig ?: com.example.data.model.DynamicServerConfig()
@@ -214,7 +219,7 @@ class NexusVpnService : VpnService() {
                         uuid = baseConfig.uuid?.takeIf { it.isNotBlank() } ?: currentUid
                     )
                     log(LogLevel.INFO, "[XRAY] Noyau VLESS synchronisé avec l'UID : ${serverConfig.uuid}")
-                    vlessEngine = XrayVlessEngine(serverConfig, vpnInterface!!.fileDescriptor, this@NexusVpnService)
+                    vlessEngine = XrayVlessEngine(serverConfig, vpnInterface!!.fileDescriptor, fdInt, this@NexusVpnService)
                     vlessEngine?.startEngine()
 
                     updateNotification("Connecté", "Trafic protégé VLESS+WS")
@@ -266,8 +271,9 @@ class NexusVpnService : VpnService() {
                 var deltaTx = (currentTx - lastTx).coerceAtLeast(0L)
                 var deltaRx = (currentRx - lastRx).coerceAtLeast(0L)
 
-                // Ajouter les octets directement relayés par le moteur VLESS
+                // Ajouter les octets directement relayés par le moteur Xray natif
                 vlessEngine?.let { engine ->
+                    engine.updateStatsFromCore()
                     deltaTx += engine.bytesUploaded.getAndSet(0L)
                     deltaRx += engine.bytesDownloaded.getAndSet(0L)
                 }

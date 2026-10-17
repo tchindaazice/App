@@ -250,7 +250,39 @@ object VlessConfigParser {
             put("settings", JSONObject())
         }
         outbounds.put(directOutbound)
+
+        val blockOutbound = JSONObject().apply {
+            put("tag", "block")
+            put("protocol", "blackhole")
+            put("settings", JSONObject())
+        }
+        outbounds.put(blockOutbound)
         root.put("outbounds", outbounds)
+
+        // Policy & Stats for real-time traffic accounting
+        val policyObj = JSONObject().apply {
+            val systemObj = JSONObject().apply {
+                put("statsOutboundUplink", true)
+                put("statsOutboundDownlink", true)
+            }
+            put("system", systemObj)
+        }
+        root.put("policy", policyObj)
+        root.put("stats", JSONObject())
+
+        // Routing
+        val routingObj = JSONObject().apply {
+            put("domainStrategy", "AsIs")
+            val rules = org.json.JSONArray()
+            val ruleProxy = JSONObject().apply {
+                put("type", "field")
+                put("outboundTag", "proxy")
+                put("network", "tcp,udp")
+            }
+            rules.put(ruleProxy)
+            put("rules", rules)
+        }
+        root.put("routing", routingObj)
 
         return root.toString(2)
     }

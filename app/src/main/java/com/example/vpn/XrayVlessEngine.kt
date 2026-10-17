@@ -31,6 +31,10 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import go.Seq
+import libv2ray.CoreCallbackHandler
+import libv2ray.CoreController
+import libv2ray.Libv2ray
 import javax.net.SocketFactory
 import javax.net.ssl.SNIHostName
 import javax.net.ssl.SSLContext
@@ -41,23 +45,23 @@ import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 
 /**
- * Moteur Xray / VLESS Core pour Android (VLESS v0 + WebSocket + TLS).
- * - Force le protocole HTTP/1.1 pour garantir l'upgrade WebSocket 101 Switching Protocols.
- * - Configure TLS SNI explicite via SNIHostName sur les SSLSockets protégés.
- * - Connecte directement les sockets TCP protégés (VpnService.protect()) vers l'IP cible (ex: 192.179.18.100:443).
- * - En-tête Host configuré proprement sans en-têtes non standards rejetés par Xray/V2Ray.
- * - Pile TCP/IP User-Space complète avec calcul impératif des checksums IPv4 et TCP/UDP (RFC 791, RFC 1071, RFC 793, RFC 768).
- * - Sessions TCP par 4-tuple (srcIp, srcPort, dstIp, dstPort) avec handshake SYN / SYN-ACK / ACK et relais VLESS v0.
- * - Découpage en segments MSS max 1360 octets avec retrait de l'en-tête de réponse VLESS.
- * - Résolution DNS robuste avec fallback DNS-over-TCP via socket protégé et tunnel VLESS.
+ * Moteur Xray / VLESS Core officiel pour Android (intégrant AndroidLibXrayLite / Go Xray-core et pile tun2socks).
+ * - Utilise le véritable noyau natif Xray en Go via Libv2ray et CoreController.
+ * - Injecte la configuration officielle générée par VlessConfigParser (inbounds SOCKS+HTTP, outbounds VLESS+WS+TLS).
+ * - Relaye l'interface TUN (tunFd) directement au noyau Go officiel.
+ * - Comptabilise les flux en temps réel via queryAllOutboundTrafficStats().
+ * - Conserve une pile de secours user-space avec checksums RFC pour la redondance.
  */
 class XrayVlessEngine(
     private val config: DynamicServerConfig,
     private val tunFd: FileDescriptor,
+    private val tunFdInt: Int = -1,
     private val vpnService: VpnService? = null
 ) {
 
     private val isRunning = AtomicBoolean(false)
+    private val isNativeRunning = AtomicBoolean(false)
+    private var coreController: CoreController? = null
     private var probeWebSocket: WebSocket? = null
 
     val bytesUploaded = AtomicLong(0L)
@@ -304,55 +308,111 @@ class XrayVlessEngine(
             .build()
     }
 
+    fun updateStatsFromCore() {
+        val controller = coreController ?: return
+        if (!isNativeRunning.get()) return
+        try {
+            val stats = controller.queryAllOutboundTrafficStats()
+            if (!stats.isNullOrBlank()) {
+                val parts = stats.split(";")
+                for (part in parts) {
+                    val fields = part.split(",")
+                    if (fields.size == 3) {
+                        val dir = fields[1]
+                        val value = fields[2].toLongOrNull() ?: 0L
+                        if (dir == "uplink") {
+                            bytesUploaded.addAndGet(value)
+                        } else if (dir == "downlink") {
+                            bytesDownloaded.addAndGet(value)
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
     suspend fun startEngine(): Boolean = withContext(Dispatchers.IO) {
         val proto = (config.protocol.ifEmpty { "vless" }).uppercase()
         val port = targetPort
         val sni = sniHost
         val hostHdr = hostHeader
+        val target = targetIp
 
-        log(LogLevel.INFO, "[XRAY] Démarrage du noyau $proto v0 (Port: $port, TLS: ${config.enableTls}, ALPN: HTTP/1.1)...")
-        log(LogLevel.INFO, "[XRAY] Cible Serveur : $targetIp:$port | SNI : $sni | Host Header : $hostHdr")
-        log(LogLevel.INFO, "[XRAY] Protection socket VPN activée (VpnService.protect).")
+        log(LogLevel.INFO, "[XRAY-CORE] Initialisation du moteur natif officiel Go (AndroidLibXrayLite / Xray-core)...")
+        log(LogLevel.INFO, "[XRAY-CORE] Serveur cible : $target:$port | SNI : $sni | Host : $hostHdr | UUID : ${config.uuid}")
 
-        val probeRequest = createWsRequest()
-        val connectionSuccess = AtomicBoolean(false)
-        val latch = CountDownLatch(1)
-
+        var nativeStarted = false
         try {
-            probeWebSocket = okHttpClient.newWebSocket(probeRequest, object : WebSocketListener() {
-                override fun onOpen(webSocket: WebSocket, response: Response) {
-                    log(LogLevel.SUCCESS, "[XRAY] Canal WebSocket VLESS validé vers $targetIp:$port (101 Switching Protocols)")
-                    connectionSuccess.set(true)
-                    latch.countDown()
-                }
+            val ctx = vpnService?.applicationContext
+            if (ctx != null) {
+                Seq.setContext(ctx)
+                val assetDir = ctx.getDir("assets", android.content.Context.MODE_PRIVATE).absolutePath
+                val key = config.uuid ?: "nexus-xudp-key"
+                Libv2ray.initCoreEnv(assetDir, key)
+                val libVer = Libv2ray.checkVersionX()
+                log(LogLevel.SUCCESS, "[XRAY-CORE] Environnement natif Go prêt ($libVer).")
+            }
 
-                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                    log(LogLevel.WARN, "[XRAY] Info WebSocket : ${t.message ?: "Tunnel actif"}")
-                    connectionSuccess.set(false)
-                    latch.countDown()
+            val xrayJson = VlessConfigParser.generateXrayJsonConfig(config)
+            val callback = object : CoreCallbackHandler {
+                override fun startup(): Long {
+                    log(LogLevel.SUCCESS, "[XRAY-CORE] Noyau Go Xray démarré avec succès.")
+                    return 0
                 }
+                override fun shutdown(): Long {
+                    log(LogLevel.INFO, "[XRAY-CORE] Noyau Go Xray arrêté.")
+                    return 0
+                }
+                override fun onEmitStatus(p0: Long, msg: String?): Long {
+                    if (!msg.isNullOrBlank()) {
+                        log(LogLevel.INFO, "[XRAY-NATIVE] $msg")
+                    }
+                    return 0
+                }
+            }
 
-                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                    log(LogLevel.WARN, "[XRAY] Canal fermé ($code) : $reason")
-                }
-            })
-        } catch (e: Exception) {
-            log(LogLevel.WARN, "[XRAY] Erreur initialisation WebSocket : ${e.message}")
-            latch.countDown()
+            val controller = Libv2ray.newCoreController(callback)
+            coreController = controller
+
+            val effectiveFd = if (tunFdInt > 0) tunFdInt else 0
+            log(LogLevel.INFO, "[XRAY-CORE] Lancement de startLoop(tunFd=$effectiveFd)...")
+            controller.startLoop(xrayJson, effectiveFd)
+
+            if (controller.isRunning) {
+                isNativeRunning.set(true)
+                nativeStarted = true
+                log(LogLevel.SUCCESS, "[XRAY-CORE] ✅ Moteur natif officiel Xray-core actif sur tunFd=$effectiveFd !")
+            }
+        } catch (e: Throwable) {
+            log(LogLevel.WARN, "[XRAY-CORE] Info startLoop natif : ${e.message}")
         }
-
-        // Attente de validation de la liaison (max 3 secondes)
-        latch.await(3, TimeUnit.SECONDS)
 
         isRunning.set(true)
 
-        // Démarrage de la pile TCP/IP User-Space et du routeur de paquets bidirectionnel sur tun0
-        startTunPacketRouter()
+        if (!nativeStarted) {
+            log(LogLevel.INFO, "[XRAY] Activation de la passerelle réseau de secours...")
+            val probeRequest = createWsRequest()
+            try {
+                probeWebSocket = okHttpClient.newWebSocket(probeRequest, object : WebSocketListener() {
+                    override fun onOpen(webSocket: WebSocket, response: Response) {
+                        log(LogLevel.SUCCESS, "[XRAY] Canal WebSocket VLESS validé vers $target:$port (101 Switching Protocols)")
+                    }
 
-        if (connectionSuccess.get()) {
-            log(LogLevel.SUCCESS, "[XRAY] Moteur VLESS v0 prêt. Pile TCP/IP et DNS opérationnelles.")
-        } else {
-            log(LogLevel.SUCCESS, "[XRAY] Tunnel tun0 actif avec sessions TCP dynamiques et DNS protégée.")
+                    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                        log(LogLevel.WARN, "[XRAY] Info WebSocket : ${t.message ?: "Tunnel actif"}")
+                    }
+
+                    override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                        log(LogLevel.WARN, "[XRAY] Canal fermé ($code) : $reason")
+                    }
+                })
+            } catch (e: Exception) {
+                log(LogLevel.WARN, "[XRAY] WebSocket : ${e.message}")
+            }
+
+            // Démarrage du routeur de paquets user-space sur tun0
+            startTunPacketRouter()
+            log(LogLevel.SUCCESS, "[XRAY] Tunnel tun0 actif.")
         }
 
         return@withContext true
@@ -1143,6 +1203,16 @@ class XrayVlessEngine(
 
     fun stopEngine() {
         isRunning.set(false)
+        if (isNativeRunning.getAndSet(false)) {
+            try {
+                coreController?.stopLoop()
+                log(LogLevel.INFO, "[XRAY-CORE] Boucle native Xray arrêtée avec succès.")
+            } catch (e: Exception) {
+                log(LogLevel.WARN, "[XRAY-CORE] Arrêt Xray : ${e.message}")
+            }
+            coreController = null
+        }
+
         for ((_, session) in tcpSessions) {
             try {
                 session.isClosed = true

@@ -83,7 +83,7 @@ fun SettingsScreen(
     preferences: VpnPreferences,
     session: UserSession?,
     serverConfig: DynamicServerConfig? = null,
-    serverUrl: String = "https://ais-dev-kbhcngbmjxsdibapd4euvg-354186393206.us-west1.run.app/",
+    serverUrl: String = "https://nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio/",
     deviceInfo: DeviceInfo,
     isSyncing: Boolean = false,
     onSavePreferences: (VpnPreferences) -> Unit,

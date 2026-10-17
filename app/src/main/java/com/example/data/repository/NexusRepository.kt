@@ -44,12 +44,12 @@ class NexusRepository(private val context: Context) {
         .build()
 
     companion object {
-        const val DEFAULT_WEB_PANEL_URL = "https://ais-dev-kbhcngbmjxsdibapd4euvg-354186393206.us-west1.run.app/"
+        const val DEFAULT_WEB_PANEL_URL = "https://nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio/"
     }
 
     private var baseUrl: String = run {
         val stored = prefs.getString("cfg_server_url", null)
-        if (stored.isNullOrBlank() || stored.contains("nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio")) {
+        if (stored.isNullOrBlank() || stored.contains("ais-dev") || stored.contains("us-west1.run.app")) {
             prefs.edit().putString("cfg_server_url", DEFAULT_WEB_PANEL_URL).apply()
             DEFAULT_WEB_PANEL_URL
         } else {

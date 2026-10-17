@@ -83,6 +83,7 @@ googleServices {
 }
 
 dependencies {
+  implementation(files("libs/libv2ray.aar"))
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
   // implementation(libs.accompanist.permissions)
