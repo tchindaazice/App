@@ -141,4 +141,118 @@ object VlessConfigParser {
 
         return "vless://$uuid@$host:$port?type=ws&security=$sec&path=$path&host=$headerHost&sni=$sni#$rem"
     }
+
+    /**
+     * Génère la configuration standard JSON officielle pour Xray-Core.
+     * Inbounds: SOCKS 127.0.0.1:10808 + HTTP 127.0.0.1:10809
+     * Outbounds: VLESS avec wsSettings (path, Host), tlsSettings (serverName, allowInsecure) et mux.
+     */
+    fun generateXrayJsonConfig(config: DynamicServerConfig): String {
+        val host = config.serverAddress?.takeIf { it.isNotBlank() } ?: "192.179.18.100"
+        val port = if (config.serverPort > 0) config.serverPort else 443
+        val uuid = config.uuid?.takeIf { it.isNotBlank() } ?: "83d5a4b2-a45b-48c1-9012-3456789abcde"
+        val rawPath = if (config.wsPath.isNotBlank()) config.wsPath else "/nexustunnel"
+        val path = if (rawPath.startsWith("/")) rawPath else "/$rawPath"
+        val sni = config.sni?.takeIf { it.isNotBlank() } ?: "crashlyticsreports-pa.googleapis.com"
+        val hostHeader = config.headerHost?.takeIf { it.isNotBlank() } ?: "nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio"
+        val isTls = config.enableTls
+        val isMux = config.enableMux
+
+        val root = JSONObject()
+
+        // Logs
+        val logObj = JSONObject()
+        logObj.put("loglevel", "warning")
+        root.put("log", logObj)
+
+        // Inbounds
+        val inbounds = org.json.JSONArray()
+        val socksInbound = JSONObject().apply {
+            put("tag", "socks-in")
+            put("port", 10808)
+            put("listen", "127.0.0.1")
+            put("protocol", "socks")
+            put("settings", JSONObject().apply {
+                put("auth", "noauth")
+                put("udp", true)
+            })
+            put("sniffing", JSONObject().apply {
+                put("enabled", true)
+                put("destOverride", org.json.JSONArray().put("http").put("tls"))
+            })
+        }
+        inbounds.put(socksInbound)
+
+        val httpInbound = JSONObject().apply {
+            put("tag", "http-in")
+            put("port", 10809)
+            put("listen", "127.0.0.1")
+            put("protocol", "http")
+            put("settings", JSONObject().apply {
+                put("allowTransparent", false)
+            })
+        }
+        inbounds.put(httpInbound)
+        root.put("inbounds", inbounds)
+
+        // Outbounds
+        val outbounds = org.json.JSONArray()
+        val vlessOutbound = JSONObject().apply {
+            put("tag", "proxy")
+            put("protocol", "vless")
+
+            val settings = JSONObject()
+            val vnext = org.json.JSONArray()
+            val serverObj = JSONObject().apply {
+                put("address", host)
+                put("port", port)
+                val users = org.json.JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("id", uuid)
+                        put("encryption", "none")
+                        put("level", 0)
+                    })
+                }
+                put("users", users)
+            }
+            vnext.put(serverObj)
+            settings.put("vnext", vnext)
+            put("settings", settings)
+
+            val streamSettings = JSONObject().apply {
+                put("network", "ws")
+                put("security", if (isTls) "tls" else "none")
+                if (isTls) {
+                    put("tlsSettings", JSONObject().apply {
+                        put("serverName", sni)
+                        put("allowInsecure", true)
+                    })
+                }
+                put("wsSettings", JSONObject().apply {
+                    put("path", path)
+                    put("headers", JSONObject().apply {
+                        put("Host", hostHeader)
+                    })
+                })
+            }
+            put("streamSettings", streamSettings)
+
+            put("mux", JSONObject().apply {
+                put("enabled", isMux)
+                put("concurrency", 8)
+            })
+        }
+        outbounds.put(vlessOutbound)
+
+        val directOutbound = JSONObject().apply {
+            put("tag", "direct")
+            put("protocol", "freedom")
+            put("settings", JSONObject())
+        }
+        outbounds.put(directOutbound)
+        root.put("outbounds", outbounds)
+
+        return root.toString(2)
+    }
 }
+

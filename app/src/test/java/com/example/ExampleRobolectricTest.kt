@@ -24,7 +24,7 @@ class ExampleRobolectricTest {
     fun `read app name string from context`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val appName = context.getString(R.string.app_name)
-        assertEquals("Nexus Tunnel", appName)
+        assertEquals("Nexus Tunnel VPN", appName)
     }
 
     @Test
@@ -71,4 +71,50 @@ class ExampleRobolectricTest {
         assertEquals(token, session?.token)
         assertTrue((session?.quotaTotalBytes ?: 0) > 0)
     }
+
+    @Test
+    fun `generateXrayJsonConfig produces valid Xray core json`() {
+        val config = com.example.data.model.DynamicServerConfig(
+            protocol = "vless",
+            serverAddress = "192.179.18.100",
+            serverPort = 443,
+            uuid = "83d5a4b2-a45b-48c1-9012-3456789abcde",
+            wsPath = "/nexustunnel",
+            sni = "crashlyticsreports-pa.googleapis.com",
+            headerHost = "nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio",
+            enableTls = true,
+            enableMux = true
+        )
+        val jsonString = com.example.vpn.VlessConfigParser.generateXrayJsonConfig(config)
+        assertNotNull(jsonString)
+        val json = org.json.JSONObject(jsonString)
+
+        assertTrue(json.has("inbounds"))
+        assertTrue(json.has("outbounds"))
+
+        val inbounds = json.getJSONArray("inbounds")
+        assertEquals(2, inbounds.length())
+        assertEquals("socks", inbounds.getJSONObject(0).getString("protocol"))
+        assertEquals(10808, inbounds.getJSONObject(0).getInt("port"))
+        assertEquals("http", inbounds.getJSONObject(1).getString("protocol"))
+        assertEquals(10809, inbounds.getJSONObject(1).getInt("port"))
+
+        val outbounds = json.getJSONArray("outbounds")
+        val vlessOut = outbounds.getJSONObject(0)
+        assertEquals("vless", vlessOut.getString("protocol"))
+        val stream = vlessOut.getJSONObject("streamSettings")
+        assertEquals("ws", stream.getString("network"))
+        assertEquals("tls", stream.getString("security"))
+        assertEquals("/nexustunnel", stream.getJSONObject("wsSettings").getString("path"))
+        assertEquals(
+            "nexus-tunnel-d-ploiement-gestionnaire-vless.ai.studio",
+            stream.getJSONObject("wsSettings").getJSONObject("headers").getString("Host")
+        )
+        assertEquals(
+            "crashlyticsreports-pa.googleapis.com",
+            stream.getJSONObject("tlsSettings").getString("serverName")
+        )
+        assertTrue(vlessOut.getJSONObject("mux").getBoolean("enabled"))
+    }
 }
+

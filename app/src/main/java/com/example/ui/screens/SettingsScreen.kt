@@ -59,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Link
 import com.example.data.model.DeviceInfo
@@ -100,6 +101,7 @@ fun SettingsScreen(
     var importInputText by remember { mutableStateOf("") }
     var showEditUuidDialog by remember { mutableStateOf(false) }
     var editUuidText by remember { mutableStateOf("") }
+    var showXrayJsonDialog by remember { mutableStateOf(false) }
 
     var dnsPrimary by remember(preferences.dnsPrimary) { mutableStateOf(preferences.dnsPrimary) }
     var dnsSecondary by remember(preferences.dnsSecondary) { mutableStateOf(preferences.dnsSecondary) }
@@ -270,6 +272,20 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Importer Lien", fontSize = 12.sp)
                     }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedButton(
+                    onClick = { showXrayJsonDialog = true },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NexusCyan),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, NexusCyan),
+                    modifier = Modifier.fillMaxWidth().testTag("view_xray_json_button")
+                ) {
+                    Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Configuration JSON Xray-Core Officielle", fontSize = 12.sp)
                 }
             }
         }
@@ -654,6 +670,68 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) {
                     Text("Annuler", color = NexusTextSecondary)
+                }
+            }
+        )
+    }
+
+    if (showXrayJsonDialog) {
+        val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+        val effectiveConfig = serverConfig ?: DynamicServerConfig(uuid = session?.uid)
+        val xrayJson = com.example.vpn.VlessConfigParser.generateXrayJsonConfig(effectiveConfig)
+
+        AlertDialog(
+            onDismissRequest = { showXrayJsonDialog = false },
+            containerColor = NexusSurface,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Code, contentDescription = null, tint = NexusCyan, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Configuration Xray-Core", color = NexusTextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        "JSON officiel standard Xray-core / v2ray (Inbounds socks 10808 + http 10809, Outbound VLESS TLS WS Mux) :",
+                        color = NexusTextSecondary,
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(280.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(NexusSurfaceVariant)
+                            .border(1.dp, NexusCardBorder, RoundedCornerShape(8.dp))
+                            .padding(10.dp)
+                    ) {
+                        val jsonScroll = rememberScrollState()
+                        Text(
+                            text = xrayJson,
+                            color = NexusCyan,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.verticalScroll(jsonScroll)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(xrayJson))
+                        Toast.makeText(context, "JSON Xray copié dans le presse-papier !", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NexusCyan, contentColor = Color.Black)
+                ) {
+                    Text("Copier JSON")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showXrayJsonDialog = false }) {
+                    Text("Fermer", color = NexusTextSecondary)
                 }
             }
         )
