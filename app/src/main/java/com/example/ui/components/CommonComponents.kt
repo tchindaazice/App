@@ -441,6 +441,14 @@ fun VpnPowerButton(
         VpnStatus.DISCONNECTED -> Triple(Color.Transparent, Color(0xFF1E2D4A), "Déconnecté")
     }
 
+    val actionDescription = when (status) {
+        VpnStatus.CONNECTED -> "Désactiver le VPN"
+        VpnStatus.CONNECTING -> "Annuler la connexion VPN"
+        VpnStatus.DISCONNECTING -> "Annuler la déconnexion VPN"
+        VpnStatus.ERROR -> "Réessayer la connexion VPN"
+        VpnStatus.DISCONNECTED -> "Activer le VPN"
+    }
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
@@ -486,7 +494,7 @@ fun VpnPowerButton(
                     } else {
                         Icon(
                             imageVector = Icons.Default.PowerSettingsNew,
-                            contentDescription = "Activer VPN",
+                            contentDescription = actionDescription,
                             tint = if (status == VpnStatus.CONNECTED) Color(0xFF03261C) else buttonColor,
                             modifier = Modifier.size(52.dp)
                         )

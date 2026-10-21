@@ -1,0 +1,3 @@
+## 2023-10-22 - Dynamic Content Descriptions for Status Buttons
+**Learning:** Found a critical accessibility issue where a main action button (VPN Power) had a static "Activer VPN" screen reader label, even when the state was already connected. This causes confusion for screen reader users as the button action would actually disconnect the VPN.
+**Action:** Always ensure that `contentDescription` for toggle buttons dynamically updates to reflect the action that will occur when pressed, rather than the static generic function of the button.
