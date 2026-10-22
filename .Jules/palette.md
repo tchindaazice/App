@@ -1,0 +1,3 @@
+## 2024-10-23 - Switch and IconButton Accessibility
+**Learning:** In Jetpack Compose, having a `Switch` in a `Row` alongside text creates a fragmented accessibility experience. Simply putting `toggleable` on the Row and clearing semantics on the Switch might still result in double-reading or clunky interactions. The best approach is to use `Modifier.semantics(mergeDescendants = true)` on the `Row` in conjunction with `toggleable(..., role = Role.Switch)` and `onCheckedChange = null` on the child `Switch`.
+**Action:** Used `mergeDescendants = true` with `toggleable` on parent `Row` elements instead of clearing semantics on children to create a cohesive, accessible touch target.
