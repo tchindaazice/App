@@ -1,3 +1,3 @@
 ## 2024-10-23 - Switch and IconButton Accessibility
-**Learning:** Found multiple instances where semantic modifiers or semantic properties are missing for components like `Switch` and `IconButton`. In Jetpack Compose, icons without text need a `contentDescription` for accessibility.
-**Action:** Adding semantic `contentDescription` appropriately for interactive components to ensure screen readers provide useful information to the user.
+**Learning:** In Jetpack Compose, having a `Switch` in a `Row` alongside text creates a fragmented accessibility experience. Simply putting `toggleable` on the Row and clearing semantics on the Switch might still result in double-reading or clunky interactions. The best approach is to use `Modifier.semantics(mergeDescendants = true)` on the `Row` in conjunction with `toggleable(..., role = Role.Switch)` and `onCheckedChange = null` on the child `Switch`.
+**Action:** Used `mergeDescendants = true` with `toggleable` on parent `Row` elements instead of clearing semantics on children to create a cohesive, accessible touch target.

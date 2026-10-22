@@ -56,8 +56,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -770,6 +769,7 @@ private fun SettingSwitch(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .semantics(mergeDescendants = true) {}
             .toggleable(
                 value = checked,
                 onValueChange = onCheckedChange,
@@ -785,9 +785,6 @@ private fun SettingSwitch(
         Switch(
             checked = checked,
             onCheckedChange = null,
-            modifier = Modifier.clearAndSetSemantics {
-                contentDescription = "$title: $subtitle"
-            },
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.Black,
                 checkedTrackColor = NexusCyan,
