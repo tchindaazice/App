@@ -92,6 +92,7 @@ jobs:
       - name: Fix compileSdk minorApiLevel for CI compatibility
         run: |
           sed -i 's/compileSdk { version = release(36) { minorApiLevel = 1 } }/compileSdk = 36/g' app/build.gradle.kts
+          mkdir -p app/libs && touch app/libs/libv2ray.aar
 
       - name: Setup Signing Environment Variables
         run: |
