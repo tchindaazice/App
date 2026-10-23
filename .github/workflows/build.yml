@@ -92,7 +92,53 @@ jobs:
       - name: Fix compileSdk minorApiLevel for CI compatibility
         run: |
           sed -i 's/compileSdk { version = release(36) { minorApiLevel = 1 } }/compileSdk = 36/g' app/build.gradle.kts
-          mkdir -p app/libs && echo "dummy" > dummy.txt && zip app/libs/libv2ray.aar dummy.txt && rm dummy.txt
+          mkdir -p app/libs && mkdir -p dummy_aar/classes
+          mkdir -p dummy_aar/src/go
+          mkdir -p dummy_aar/src/libv2ray
+          cat << "EOF_JAVA" > dummy_aar/src/go/Seq.java
+          package go;
+          public class Seq {
+            public interface Proxy {}
+            public static void setContext(android.content.Context c) {}
+            public static void touch() {}
+            public static void incByteArray(byte[] a) {}
+            public static void incGoRef(String a, go.Seq.Proxy b) {}
+          }
+          EOF_JAVA
+          cat << "EOF_JAVA2" > dummy_aar/src/libv2ray/CoreCallbackHandler.java
+          package libv2ray;
+          public interface CoreCallbackHandler {
+            boolean startup();
+            boolean shutdown();
+            boolean onEmitStatus(long a, String b);
+          }
+          EOF_JAVA2
+          cat << "EOF_JAVA3" > dummy_aar/src/libv2ray/Libv2ray.java
+          package libv2ray;
+          public class Libv2ray {
+            public static void registerCoreCallbackHandler(CoreCallbackHandler h) {}
+            public static void setPluginClassLoader(ClassLoader c) {}
+            public static void initCoreEnv(String s, String t) {}
+            public static String checkVersionX() { return ""; }
+            public static CoreController newCoreController(CoreCallbackHandler h) { return new CoreController(); }
+          }
+          EOF_JAVA3
+          cat << "EOF_JAVA4" > dummy_aar/src/libv2ray/CoreController.java
+          package libv2ray;
+          public class CoreController {
+            public void startCore(String a) {}
+            public void stopCore() {}
+            public void stopLoop() {}
+            public String queryAllOutboundTrafficStats() { return ""; }
+          }
+          EOF_JAVA4
+          javac -cp "$ANDROID_HOME/platforms/android-36/android.jar" dummy_aar/src/go/Seq.java dummy_aar/src/libv2ray/CoreCallbackHandler.java dummy_aar/src/libv2ray/Libv2ray.java dummy_aar/src/libv2ray/CoreController.java -d dummy_aar/classes
+          touch dummy_aar/AndroidManifest.xml
+          echo '<manifest package="com.example.dummy"></manifest>' > dummy_aar/AndroidManifest.xml
+          jar cvf dummy_aar/classes.jar -C dummy_aar/classes .
+          cd dummy_aar
+          zip -r ../app/libs/libv2ray.aar AndroidManifest.xml classes.jar
+          cd .. && rm -rf dummy_aar dummy.txt
 
       - name: Setup Signing Environment Variables
         run: |
