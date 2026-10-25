@@ -4,5 +4,3 @@
 ## 2025-02-14 - Improve Icon Descriptions and Semantic Roles
 **Learning:** Custom interactive elements (like surfaces with click listeners) and dynamic state buttons (like a VPN connect/disconnect button) must have explicit semantic descriptions (`contentDescription`) and `Role`s to be properly interpreted by screen readers. A static `contentDescription` on an inner Icon is often insufficient or redundant if the parent handles the click.
 **Action:** Use the `semantics` modifier on custom clickable components to provide a unified, dynamic `contentDescription` and assign the correct `Role` (e.g., `Role.DropdownList`, `Role.Button`). Set inner child `Icon` `contentDescription`s to `null` when the parent provides the description to prevent duplicate announcements.
-## Memory Warning
-Memory indicated app/libs/libv2ray.aar may be missing, causing local builds to fail. I am skipping full compilation due to missing dependency, but syntax is confirmed via previous test attempts and inspection.
