@@ -41,6 +41,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -106,7 +111,11 @@ fun CountrySelector(
             .background(NexusSurfaceVariant)
             .border(1.dp, NexusCardBorder, RoundedCornerShape(12.dp))
             .testTag("country_selector_trigger")
-            .clickable { showDialog = true }
+            .semantics {
+                role = Role.DropdownList
+                contentDescription = "Sélectionner votre pays. Actuellement: ${selectedCountry.name}"
+            }
+            .clickable(onClickLabel = "Ouvrir la liste des pays") { showDialog = true }
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Row(
@@ -198,7 +207,11 @@ fun CountrySelector(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(if (isSelected) NexusSurfaceVariant else Color.Transparent)
-                                .clickable {
+                                .semantics {
+                                    role = Role.RadioButton
+                                    contentDescription = "${country.name}, indicatif ${country.dialCode}"
+                                }
+                                .clickable(onClickLabel = "Sélectionner ${country.name}") {
                                     onCountrySelected(country)
                                     showDialog = false
                                     searchQuery = ""
@@ -467,6 +480,12 @@ fun VpnPowerButton(
                     .border(3.dp, buttonColor.copy(alpha = 0.8f), CircleShape)
             )
 
+        val powerActionLabel = when (status) {
+            VpnStatus.CONNECTED -> "Désactiver le VPN"
+            VpnStatus.CONNECTING -> "Annuler la connexion VPN"
+            else -> "Activer le VPN"
+        }
+
             Surface(
                 onClick = onClick,
                 shape = CircleShape,
@@ -475,6 +494,10 @@ fun VpnPowerButton(
                 modifier = Modifier
                     .size(110.dp)
                     .testTag("vpn_power_button")
+                .semantics {
+                    role = Role.Button
+                    contentDescription = "$powerActionLabel. État actuel: $statusText"
+                }
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     if (status == VpnStatus.CONNECTING) {
@@ -486,7 +509,7 @@ fun VpnPowerButton(
                     } else {
                         Icon(
                             imageVector = Icons.Default.PowerSettingsNew,
-                            contentDescription = "Activer VPN",
+                            contentDescription = null, // Handled by parent surface semantics
                             tint = if (status == VpnStatus.CONNECTED) Color(0xFF03261C) else buttonColor,
                             modifier = Modifier.size(52.dp)
                         )

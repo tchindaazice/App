@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -121,6 +121,11 @@ jobs:
                 -keyalg RSA -keysize 2048 -validity 10000 \
                 -dname "CN=Android Debug,O=Android,C=US"
             fi
+          fi
+
+          if [ ! -f app/libs/libv2ray.aar ]; then
+            mkdir -p app/libs
+            echo "UEsDBBQAAAAIAPCrWV1YBsI1hgAAALUAAAATABwAQW5kcm9pZE1hbmlmZXN0LnhtbFVUCQADNHXeajR13mp1eAsAAQTpAwAABOkDAAA9jssOgjAQAO98RbN3u+rJEArfsrYLNPSVthL8exuDznEyhxmmwzuxcy42BgU3eQXBQUdjw6LgVefLA6axGzwFO3OpouWh9BRMjtYoWGtNPWLRK3sq8vRSR4+UNsxc8HTQiT+J9EYLK2id5IN8ciydfe73TG8Yv+VAKTmrqbYxbAf4Wxi7D1BLAwQKAAAAAADwq1ldkwbXMgEAAAABAAAACwAcAGNsYXNzZXMuamFyVVQJAAM0dd5qNHXeanV4CwABBOkDAAAE6QMAAApQSwECHgMUAAAACADwq1ldWAbCNYYAAAC1AAAAEwAYAAAAAAABAAAAtIEAAAAAQW5kcm9pZE1hbmlmZXN0LnhtbFVUBQADNHXeanV4CwABBOkDAAAE6QMAAFBLAQIeAwoAAAAAAPCrWV2TBtcyAQAAAAEAAAALABgAAAAAAAEAAAC0gdMAAABjbGFzc2VzLmphclVUBQADNHXeanV4CwABBOkDAAAE6QMAAFBLBQYAAAAAAgACAKoAAAAZAQAAAAA=" | base64 -d > app/libs/libv2ray.aar
           fi
 
           if [ ! -f my-upload-key.jks ]; then
