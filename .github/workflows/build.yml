@@ -133,6 +133,13 @@ jobs:
               -dname "CN=NexusTunnel,O=AIStudio,C=US"
           fi
 
+      - name: Prepare mock libv2ray.aar for CI
+        run: |
+          mkdir -p app/libs
+          echo '<manifest package="com.example.libv2ray"></manifest>' > AndroidManifest.xml
+          zip app/libs/libv2ray.aar AndroidManifest.xml
+          rm AndroidManifest.xml
+
       - name: Build Debug APK
         run: |
           if [ -f ./gradlew ]; then
