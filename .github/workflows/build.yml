@@ -133,12 +133,47 @@ jobs:
               -dname "CN=NexusTunnel,O=AIStudio,C=US"
           fi
 
-      - name: Prepare mock libv2ray.aar for CI
+      - name: Prepare mock libv2ray.aar and Kotlin stubs for CI
         run: |
           mkdir -p app/libs
           echo '<manifest package="com.example.libv2ray"></manifest>' > AndroidManifest.xml
           zip app/libs/libv2ray.aar AndroidManifest.xml
           rm AndroidManifest.xml
+          mkdir -p app/src/main/java/go
+          cat << 'STUB_EOF' > app/src/main/java/go/Seq.kt
+          package go
+          import android.content.Context
+          object Seq {
+              @JvmStatic fun setContext(context: Context) {}
+          }
+          STUB_EOF
+          mkdir -p app/src/main/java/libv2ray
+          cat << 'STUB_EOF' > app/src/main/java/libv2ray/Libv2ray.kt
+          package libv2ray
+          interface CoreCallbackHandler {
+              fun startup(): Long
+              fun shutdown(): Long
+              fun onEmitStatus(p0: Long, msg: String?): Long
+          }
+          interface CoreController {
+              val isRunning: Boolean
+              fun startLoop(configJson: String, tunFd: Int): Long
+              fun stopLoop(): Long
+              fun queryAllOutboundTrafficStats(): String?
+          }
+          object Libv2ray {
+              @JvmStatic fun initCoreEnv(assetDir: String, key: String) {}
+              @JvmStatic fun checkVersionX(): String { return "1.0" }
+              @JvmStatic fun newCoreController(handler: CoreCallbackHandler): CoreController {
+                  return object : CoreController {
+                      override val isRunning: Boolean = true
+                      override fun startLoop(configJson: String, tunFd: Int): Long { return 0 }
+                      override fun stopLoop(): Long { return 0 }
+                      override fun queryAllOutboundTrafficStats(): String? { return null }
+                  }
+              }
+          }
+          STUB_EOF
 
       - name: Build Debug APK
         run: |
