@@ -127,6 +127,138 @@ jobs:
           zip app/libs/libv2ray.aar classes.jar AndroidManifest.xml || true
 
 
+      - name: Generate mock libv2ray.aar
+        run: |
+          mkdir -p app/libs stub_src/libv2ray stub_src/go
+          cat << 'INNEREOF' > stub_src/libv2ray/CoreCallbackHandler.java
+          package libv2ray;
+          public interface CoreCallbackHandler {
+              long startup();
+              long shutdown();
+              long onEmitStatus(long s, String msg);
+          }
+          INNEREOF
+          cat << 'INNEREOF' > stub_src/libv2ray/CoreController.java
+          package libv2ray;
+          public class CoreController {
+              public void startLoop(String config, int tunFd) throws Exception {}
+              public void stopLoop() {}
+              public String queryAllOutboundTrafficStats() { return ""; }
+              public boolean isRunning() { return true; }
+          }
+          INNEREOF
+          cat << 'INNEREOF' > stub_src/libv2ray/Libv2ray.java
+          package libv2ray;
+          public class Libv2ray {
+              public static void V2RayPoint() {}
+              public static void initCoreEnv(String p1, String p2) {}
+              public static String checkVersionX() { return ""; }
+              public static CoreController newCoreController(CoreCallbackHandler handler) { return new CoreController(); }
+          }
+          INNEREOF
+          cat << 'INNEREOF' > stub_src/go/Seq.java
+          package go;
+          public class Seq {
+              public static void setContext(Object ctx) {}
+          }
+          INNEREOF
+          javac -d stub_out stub_src/libv2ray/*.java stub_src/go/*.java || true
+          jar cf classes.jar -C stub_out . || true
+          cat << 'INNEREOF' > AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest package="libv2ray" />
+          INNEREOF
+          zip app/libs/libv2ray.aar classes.jar AndroidManifest.xml || true
+
+
+      - name: Generate mock libv2ray.aar
+        run: |
+          mkdir -p app/libs stub_src/libv2ray stub_src/go
+          cat << 'INNEREOF' > stub_src/libv2ray/CoreCallbackHandler.java
+          package libv2ray;
+          public interface CoreCallbackHandler {
+              long startup();
+              long shutdown();
+              long onEmitStatus(long s, String msg);
+          }
+          INNEREOF
+          cat << 'INNEREOF' > stub_src/libv2ray/CoreController.java
+          package libv2ray;
+          public class CoreController {
+              public void startLoop(String config, int tunFd) throws Exception {}
+              public void stopLoop() {}
+              public String queryAllOutboundTrafficStats() { return ""; }
+              public boolean isRunning() { return true; }
+          }
+          INNEREOF
+          cat << 'INNEREOF' > stub_src/libv2ray/Libv2ray.java
+          package libv2ray;
+          public class Libv2ray {
+              public static void V2RayPoint() {}
+              public static void initCoreEnv(String p1, String p2) {}
+              public static String checkVersionX() { return ""; }
+              public static CoreController newCoreController(CoreCallbackHandler handler) { return new CoreController(); }
+          }
+          INNEREOF
+          cat << 'INNEREOF' > stub_src/go/Seq.java
+          package go;
+          public class Seq {
+              public static void setContext(Object ctx) {}
+          }
+          INNEREOF
+          javac -d stub_out stub_src/libv2ray/*.java stub_src/go/*.java || true
+          jar cf classes.jar -C stub_out . || true
+          cat << 'INNEREOF' > AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest package="libv2ray" />
+          INNEREOF
+          zip app/libs/libv2ray.aar classes.jar AndroidManifest.xml || true
+
+
+      - name: Generate mock libv2ray.aar
+        run: |
+          mkdir -p app/libs stub_src/libv2ray stub_src/go
+          cat << 'INNEREOF' > stub_src/libv2ray/CoreCallbackHandler.java
+          package libv2ray;
+          public interface CoreCallbackHandler {
+              long startup();
+              long shutdown();
+              long onEmitStatus(long s, String msg);
+          }
+          INNEREOF
+          cat << 'INNEREOF' > stub_src/libv2ray/CoreController.java
+          package libv2ray;
+          public class CoreController {
+              public void startLoop(String config, int tunFd) throws Exception {}
+              public void stopLoop() {}
+              public String queryAllOutboundTrafficStats() { return ""; }
+              public boolean isRunning() { return true; }
+          }
+          INNEREOF
+          cat << 'INNEREOF' > stub_src/libv2ray/Libv2ray.java
+          package libv2ray;
+          public class Libv2ray {
+              public static void V2RayPoint() {}
+              public static void initCoreEnv(String p1, String p2) {}
+              public static String checkVersionX() { return ""; }
+              public static CoreController newCoreController(CoreCallbackHandler handler) { return new CoreController(); }
+          }
+          INNEREOF
+          cat << 'INNEREOF' > stub_src/go/Seq.java
+          package go;
+          public class Seq {
+              public static void setContext(Object ctx) {}
+          }
+          INNEREOF
+          javac -d stub_out stub_src/libv2ray/*.java stub_src/go/*.java || true
+          jar cf classes.jar -C stub_out . || true
+          cat << 'INNEREOF' > AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest package="libv2ray" />
+          INNEREOF
+          zip app/libs/libv2ray.aar classes.jar AndroidManifest.xml || true
+
+
       - name: Fix compileSdk minorApiLevel for CI compatibility
         run: |
           sed -i 's/compileSdk { version = release(36) { minorApiLevel = 1 } }/compileSdk = 36/g' app/build.gradle.kts
