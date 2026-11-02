@@ -486,7 +486,7 @@ fun VpnPowerButton(
                     } else {
                         Icon(
                             imageVector = Icons.Default.PowerSettingsNew,
-                            contentDescription = "Activer VPN",
+                            contentDescription = if (status == VpnStatus.CONNECTED) "Désactiver VPN" else "Activer VPN",
                             tint = if (status == VpnStatus.CONNECTED) Color(0xFF03261C) else buttonColor,
                             modifier = Modifier.size(52.dp)
                         )
