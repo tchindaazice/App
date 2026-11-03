@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Nexus Tunnel VPN</string>
+    <string name="select_country_accessibility">Sélectionner un pays</string>
+    <string name="select_country_item_accessibility">Sélectionner %1$s</string>
 </resources>
