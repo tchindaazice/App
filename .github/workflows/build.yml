@@ -108,8 +108,8 @@ jobs:
           cat << 'INNER_EOF' > stub-src/libv2ray/CoreCallbackHandler.java
           package libv2ray;
           public interface CoreCallbackHandler {
-              void startup(Boolean b);
-              void shutdown(Boolean b);
+              void startup(boolean b);
+              void shutdown(boolean b);
               void onEmitStatus(long p1, String p2);
           }
           INNER_EOF
