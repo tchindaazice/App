@@ -99,33 +99,35 @@ jobs:
               public static void setContext(Object ctx) {}
               public static void initCoreEnv(String p1, String p2) {}
               public static String checkVersionX() { return "1.0.0"; }
-              public static CoreController newCoreController(String p1, String p2, CoreCallbackHandler handler) { return null; }
-              public static String queryAllOutboundTrafficStats() { return ""; }
-              public static void stopLoop() {}
+              public static CoreController newCoreController(CoreCallbackHandler handler) { return null; }
           }
           INNER_EOF
 
           cat << 'INNER_EOF' > stub-src/libv2ray/CoreCallbackHandler.java
           package libv2ray;
           public interface CoreCallbackHandler {
-              void startup(boolean b);
-              void shutdown(boolean b);
-              void onEmitStatus(long p1, String p2);
+              long startup();
+              long shutdown();
+              long onEmitStatus(long p1, String p2);
           }
           INNER_EOF
 
           cat << 'INNER_EOF' > stub-src/libv2ray/CoreController.java
           package libv2ray;
           public interface CoreController {
-              void startLoop(Object p1, Object p2);
+              void startLoop(String p1, int p2);
               boolean isRunning();
+              String queryAllOutboundTrafficStats();
+              void stopLoop();
           }
           INNER_EOF
 
           mkdir -p stub-src/go
           cat << 'INNER_EOF' > stub-src/go/Seq.java
           package go;
-          public class Seq {}
+          public class Seq {
+              public static void setContext(Object ctx) {}
+          }
           INNER_EOF
 
           mkdir -p stub-classes
