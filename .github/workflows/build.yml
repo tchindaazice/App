@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -56,7 +56,7 @@ jobs:
       - name: Prepare google-services.json if missing
         run: |
           if [ ! -f app/google-services.json ]; then
-            cat << 'EOF' > app/google-services.json
+            cat << 'INNER_EOF' > app/google-services.json
           {
             "project_info": {
               "project_number": "123456789012",
@@ -86,8 +86,69 @@ jobs:
             ],
             "configuration_version": "1"
           }
-          EOF
+          INNER_EOF
           fi
+
+      - name: Generate Dummy libv2ray.aar
+        run: |
+          mkdir -p stub-src/libv2ray
+          cat << 'INNER_EOF' > stub-src/libv2ray/Libv2ray.java
+          package libv2ray;
+          public class Libv2ray {
+              public static void V2RayPoint(Object config) {}
+              public static void setContext(Object ctx) {}
+              public static void initCoreEnv(String p1, String p2) {}
+              public static String checkVersionX() { return "1.0.0"; }
+              public static CoreController newCoreController(CoreCallbackHandler handler) { return null; }
+          }
+          INNER_EOF
+
+          cat << 'INNER_EOF' > stub-src/libv2ray/CoreCallbackHandler.java
+          package libv2ray;
+          public interface CoreCallbackHandler {
+              long startup();
+              long shutdown();
+              long onEmitStatus(long p1, String p2);
+          }
+          INNER_EOF
+
+          cat << 'INNER_EOF' > stub-src/libv2ray/CoreController.java
+          package libv2ray;
+          public interface CoreController {
+              void startLoop(String p1, int p2);
+              boolean isRunning();
+              String queryAllOutboundTrafficStats();
+              void stopLoop();
+          }
+          INNER_EOF
+
+          mkdir -p stub-src/go
+          cat << 'INNER_EOF' > stub-src/go/Seq.java
+          package go;
+          public class Seq {
+              public static void setContext(Object ctx) {}
+          }
+          INNER_EOF
+
+          mkdir -p stub-classes
+          javac -d stub-classes stub-src/libv2ray/*.java stub-src/go/Seq.java
+          jar cf classes.jar -C stub-classes .
+
+          mkdir -p aar_tmp
+          cp classes.jar aar_tmp/
+          cat << 'INNER_EOF' > aar_tmp/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="libv2ray.libv2ray">
+              <uses-sdk android:minSdkVersion="21"/>
+          </manifest>
+          INNER_EOF
+
+          cd aar_tmp
+          mkdir -p ../app/libs
+          zip -r ../app/libs/libv2ray.aar .
+          cd ..
+          rm -rf aar_tmp stub-classes stub-src classes.jar
 
       - name: Fix compileSdk minorApiLevel for CI compatibility
         run: |
@@ -163,4 +224,3 @@ jobs:
         with:
           name: app-release-apk
           path: app/build/outputs/apk/release/*.apk
-          
