@@ -133,6 +133,54 @@ jobs:
               -dname "CN=NexusTunnel,O=AIStudio,C=US"
           fi
 
+      - name: Generate mock libv2ray.aar
+        run: |
+          mkdir -p /tmp/mock_aar/classes/go
+          mkdir -p /tmp/mock_aar/classes/libv2ray
+          cat << 'JAVA' > /tmp/mock_aar/classes/go/Seq.java
+          package go;
+          public class Seq {
+              public static void setContext(android.content.Context context) {}
+          }
+          JAVA
+          cat << 'JAVA' > /tmp/mock_aar/classes/libv2ray/Libv2ray.java
+          package libv2ray;
+          public class Libv2ray {
+              public static void initV2Env(String config, String cache) {}
+              public static void initCoreEnv(String config, String cache) {}
+              public static String checkVersionX() { return ""; }
+              public static void registerCoreCallbackHandler(CoreCallbackHandler handler) {}
+              public static CoreController newCoreController(CoreCallbackHandler handler) { return null; }
+              public static String queryAllOutboundTrafficStats() { return ""; }
+              public static void stopLoop() {}
+          }
+          JAVA
+          cat << 'JAVA' > /tmp/mock_aar/classes/libv2ray/CoreController.java
+          package libv2ray;
+          public interface CoreController {
+              void startLoop(String json, int fd);
+          }
+          JAVA
+          cat << 'JAVA' > /tmp/mock_aar/classes/libv2ray/CoreCallbackHandler.java
+          package libv2ray;
+          public interface CoreCallbackHandler {
+              long startup();
+              long shutdown();
+              long onEmitStatus(long p0, String msg);
+          }
+          JAVA
+          cd /tmp/mock_aar/classes
+          javac -target 11 -source 11 -cp $ANDROID_HOME/platforms/android-36/android.jar go/Seq.java libv2ray/Libv2ray.java libv2ray/CoreController.java libv2ray/CoreCallbackHandler.java
+          jar cf ../classes.jar .
+          cd ..
+          mkdir -p res
+          cat << 'XML' > AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest package="com.example.libv2ray"></manifest>
+          XML
+          mkdir -p ${GITHUB_WORKSPACE}/app/libs
+          zip -r ${GITHUB_WORKSPACE}/app/libs/libv2ray.aar classes.jar AndroidManifest.xml res
+
       - name: Build Debug APK
         run: |
           if [ -f ./gradlew ]; then
