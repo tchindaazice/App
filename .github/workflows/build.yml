@@ -133,6 +133,64 @@ jobs:
               -dname "CN=NexusTunnel,O=AIStudio,C=US"
           fi
 
+      - name: Generate mock AAR for CI
+        run: |
+          cat << 'EOF' > generate_mock_aar.sh
+          #!/bin/bash
+          mkdir -p mock_aar/go mock_aar/libv2ray
+          cat << 'INNER_EOF' > mock_aar/go/Seq.java
+          package go;
+          public class Seq {
+              public static void setContext(android.content.Context context) {}
+          }
+          INNER_EOF
+          cat << 'INNER_EOF' > mock_aar/libv2ray/CoreController.java
+          package libv2ray;
+          public class CoreController {
+              public CoreController() {}
+              public void start(String config) {}
+              public void stop() {}
+              public void startLoop(String arg1, int arg2) {}
+              public void stopLoop() {}
+              public boolean isRunning() { return false; }
+              public String queryAllOutboundTrafficStats() { return ""; }
+          }
+          INNER_EOF
+          cat << 'INNER_EOF' > mock_aar/libv2ray/CoreCallbackHandler.java
+          package libv2ray;
+          public interface CoreCallbackHandler {
+              long startup();
+              long shutdown();
+              long onEmitStatus(long code, String message);
+          }
+          INNER_EOF
+          cat << 'INNER_EOF' > mock_aar/libv2ray/Libv2ray.java
+          package libv2ray;
+          public class Libv2ray {
+              public static CoreController getCoreController() { return new CoreController(); }
+              public static CoreController newCoreController(CoreCallbackHandler handler) { return new CoreController(); }
+              public static String getVersion() { return "1.0.0"; }
+              public static void initContext(android.content.Context context) {}
+              public static void checkVersion() {}
+              public static void checkVersionX() {}
+              public static void initCoreEnv(String path, String path2) {}
+          }
+          INNER_EOF
+          javac -cp $ANDROID_HOME/platforms/android-36/android.jar mock_aar/go/Seq.java mock_aar/libv2ray/CoreController.java mock_aar/libv2ray/Libv2ray.java mock_aar/libv2ray/CoreCallbackHandler.java
+          cd mock_aar
+          jar cvf classes.jar go/*.class libv2ray/*.class
+          cat << 'INNER_EOF' > AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest package="com.example.libv2ray" />
+          INNER_EOF
+          mkdir -p ../app/libs
+          zip -r ../app/libs/libv2ray.aar classes.jar AndroidManifest.xml
+          cd ..
+          rm -rf mock_aar
+          EOF
+          chmod +x generate_mock_aar.sh
+          ./generate_mock_aar.sh
+
       - name: Build Debug APK
         run: |
           if [ -f ./gradlew ]; then

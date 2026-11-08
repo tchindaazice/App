@@ -1,0 +1,4 @@
+<resources>
+    <string name="cd_select_country">Sélectionner un pays</string>
+    <string name="cd_select_specific_country">Sélectionner le pays %1$s</string>
+</resources>
