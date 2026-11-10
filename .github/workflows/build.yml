@@ -133,6 +133,54 @@ jobs:
               -dname "CN=NexusTunnel,O=AIStudio,C=US"
           fi
 
+      - name: Build Stub for libv2ray
+        run: |
+          mkdir -p app/libs
+          cat << 'MOCK' > CoreController.java
+          package libv2ray;
+          import android.content.Context;
+          public interface CoreController {
+              boolean isRunning();
+              void start(Context context, String config);
+              void stop();
+              void startLoop(String config, int tunFd);
+              void stopLoop();
+              String queryAllOutboundTrafficStats();
+          }
+          MOCK
+          cat << 'MOCK2' > CoreCallbackHandler.java
+          package libv2ray;
+          public interface CoreCallbackHandler {
+              long startup();
+              long shutdown();
+              long onEmitStatus(long code, String message);
+          }
+          MOCK2
+          cat << 'MOCK3' > Libv2ray.java
+          package libv2ray;
+          public class Libv2ray {
+              public static void setContext(android.content.Context context) {}
+              public static void initCoreEnv(String a, String b) {}
+              public static String checkVersionX() { return ""; }
+              public static CoreController newCoreController(CoreCallbackHandler handler) { return null; }
+          }
+          MOCK3
+          cat << 'MOCK4' > Seq.java
+          package go;
+          public class Seq {
+              public static void setContext(android.content.Context context) {}
+              public void inc() {}
+          }
+          MOCK4
+          javac -d classes -source 11 -target 11 -cp $ANDROID_HOME/platforms/android-36/android.jar CoreController.java CoreCallbackHandler.java Libv2ray.java Seq.java
+          jar cvf classes.jar -C classes/ .
+          rm -rf classes CoreController.java CoreCallbackHandler.java Libv2ray.java Seq.java
+          cat << 'MANIFEST' > AndroidManifest.xml
+          <manifest package="libv2ray.stub" />
+          MANIFEST
+          jar cvf app/libs/libv2ray.aar classes.jar AndroidManifest.xml
+          rm classes.jar AndroidManifest.xml
+
       - name: Build Debug APK
         run: |
           if [ -f ./gradlew ]; then

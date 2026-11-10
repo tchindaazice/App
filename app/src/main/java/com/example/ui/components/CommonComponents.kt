@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -99,6 +100,8 @@ fun CountrySelector(
         }
     }
 
+    val changeCountryLabel = stringResource(id = com.example.R.string.change_country)
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -106,7 +109,7 @@ fun CountrySelector(
             .background(NexusSurfaceVariant)
             .border(1.dp, NexusCardBorder, RoundedCornerShape(12.dp))
             .testTag("country_selector_trigger")
-            .clickable { showDialog = true }
+            .clickable(onClickLabel = changeCountryLabel) { showDialog = true }
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Row(
@@ -185,6 +188,7 @@ fun CountrySelector(
                 }
             },
             text = {
+                val selectCountryLabel = stringResource(id = com.example.R.string.select_country)
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -198,7 +202,7 @@ fun CountrySelector(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(if (isSelected) NexusSurfaceVariant else Color.Transparent)
-                                .clickable {
+                                .clickable(onClickLabel = selectCountryLabel) {
                                     onCountrySelected(country)
                                     showDialog = false
                                     searchQuery = ""
