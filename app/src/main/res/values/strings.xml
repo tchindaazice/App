@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Nexus Tunnel VPN</string>
+    <string name="a11y_open_country_selector">Open country selector</string>
+    <string name="a11y_select_country">Select %1$s</string>
 </resources>

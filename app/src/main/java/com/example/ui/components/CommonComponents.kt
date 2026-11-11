@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -77,6 +78,7 @@ import com.example.ui.theme.NexusTextSecondary
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.example.R
 
 @Composable
 fun CountrySelector(
@@ -106,7 +108,7 @@ fun CountrySelector(
             .background(NexusSurfaceVariant)
             .border(1.dp, NexusCardBorder, RoundedCornerShape(12.dp))
             .testTag("country_selector_trigger")
-            .clickable { showDialog = true }
+            .clickable(onClickLabel = stringResource(R.string.a11y_open_country_selector)) { showDialog = true }
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Row(
@@ -198,7 +200,7 @@ fun CountrySelector(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(if (isSelected) NexusSurfaceVariant else Color.Transparent)
-                                .clickable {
+                                .clickable(onClickLabel = stringResource(R.string.a11y_select_country, country.name)) {
                                     onCountrySelected(country)
                                     showDialog = false
                                     searchQuery = ""
